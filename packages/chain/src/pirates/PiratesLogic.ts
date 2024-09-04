@@ -1,4 +1,4 @@
-import { state, runtimeMethod, runtimeModule } from '@proto-kit/module';
+import { state, runtimeMethod, runtimeModule, Runtime, RuntimeModule } from '@proto-kit/module';
 import type { Option } from '@proto-kit/protocol';
 import { State, StateMap, assert } from '@proto-kit/protocol';
 import {
@@ -10,283 +10,152 @@ import {
   UInt32,
   Poseidon,
   Field,
-  Int64,
 } from 'o1js';
-import { MatchMaker } from '../engine/MatchMaker';
-import type { QueueListItem } from '../engine/MatchMaker';
-import { UInt64 as ProtoUInt64 } from '@proto-kit/library';
-import { Lobby } from '../engine/LobbyManager';
+import { RandomGenerator } from 'src/engine';
 
-const PIRATES_FIELD_SIZE = 15;
-const CELLS_LINE_TO_WIN = 5;
-
-class WinWitness extends Struct({
-  x: UInt32,
-  y: UInt32,
-  directionX: Int64,
-  directionY: Int64,
-}) {
-  assertCorrect() {
-    assert(
-      this.directionX
-        .equals(-1)
-        .or(this.directionX.equals(0))
-        .or(this.directionX.equals(1)),
-      'Invalid direction X',
-    );
-    assert(
-      this.directionY
-        .equals(-1)
-        .or(this.directionY.equals(0))
-        .or(this.directionY.equals(1)),
-      'Invalid direction Y',
-    );
+export class Circle extends Struct({
+  x:UInt64,
+  y:UInt64,
+  r:UInt64
+}){
+  static zero(){
+    return new Circle({x:UInt64.from(0),y:UInt64.from(0),r:UInt64.from(0)})
   }
 }
 
-export class PiratesField extends Struct({
-  value: Provable.Array(
-    Provable.Array(UInt32, PIRATES_FIELD_SIZE),
-    PIRATES_FIELD_SIZE,
-  ),
-}) {
-  static from(value: number[][] | bigint[][]) {
-    return new PiratesField({
-      value: value.map((row) => row.map((x) => UInt32.from(x))),
+export class Ship extends Struct({
+  health:UInt64,
+  circle:Circle,
+  turnRate:UInt64,
+  phase:UInt64,
+}){
+  static random() {
+    // const x=RandomGenerator.from(seed).getNumber(WORLD_SIZE);
+    // const y=RandomGenerator.from(seed).getNumber(WORLD_SIZE);
+    const randomUInt64=(max:number)=>
+      Provable.witness(UInt64, () => UInt64.from(Math.random()*max));
+    const x=randomUInt64(WORLD_SIZE);
+    const y=randomUInt64(WORLD_SIZE);
+    return new Ship({
+      health:UInt64.from(INITIAL_SHIP_HEALTH),
+      circle: new Circle({x,y,r:UInt64.from(SHIP_SIZE)}),
+      turnRate:UInt64.from(MAX_TURN_RATE),
+      phase:UInt64.from(0),
     });
   }
+}
 
-  checkWin(currentUserId: number): WinWitness | undefined {
-    const directions = [
-      [0, 1],
-      [1, 0],
-      [1, 1],
-      [-1, 1],
-    ];
+export class Player extends Struct({
+  pubKey:PublicKey,
+  ship:Ship,
+  gold:UInt64,
+  cannonBalls:UInt64
+}){
 
-    for (const direction of directions) {
-      for (let i = 0; i <= PIRATES_FIELD_SIZE; i++) {
-        for (let j = 0; j <= PIRATES_FIELD_SIZE; j++) {
-          let combo = 0;
-
-          for (let k = 0; k < CELLS_LINE_TO_WIN; k++) {
-            if (
-              i + direction[0] * k >= PIRATES_FIELD_SIZE - 1 ||
-              j + direction[1] * k >= PIRATES_FIELD_SIZE - 1 ||
-              i + direction[0] * k < 0 ||
-              j + direction[1] * k < 0
-            )
-              break;
-
-            if (
-              this.value[i + direction[0] * k][j + direction[1] * k]
-                .equals(UInt32.from(currentUserId))
-                .toBoolean()
-            )
-              combo++;
-          }
-
-          if (combo === CELLS_LINE_TO_WIN) {
-            return new WinWitness({
-              x: UInt32.from(i),
-              y: UInt32.from(j),
-              directionX: Int64.from(direction[0]),
-              directionY: Int64.from(direction[1]),
-            });
-          }
-        }
-      }
-    }
-
-    return undefined;
-  }
-
-  hash() {
-    return Poseidon.hash(this.value.flat().map((x) => x.value));
+  static init(pubKey: PublicKey,ship:Ship) {
+    return new Player({
+      pubKey,
+      ship,
+      gold: UInt64.from(0),
+      cannonBalls: UInt64.from(INITIAL_CANNONBALLS),
+    });
   }
 }
 
-export class GameInfo extends Struct({
-  player1: PublicKey,
-  player2: PublicKey,
-  currentMoveUser: PublicKey,
-  lastMoveBlockHeight: UInt64,
-  field: PiratesField,
-  winner: PublicKey,
-}) {}
+export class CannonBall extends Struct({
+  circle:Circle,
+  spawnBlockHeight:UInt64,
+}){}
+
+export class Loot extends Struct({
+  circle:Circle,
+}){}
 
 @runtimeModule()
-export class PiratesLogic extends MatchMaker {
-  // Game ids start from 1
-  @state() public games = StateMap.from<UInt64, GameInfo>(UInt64, GameInfo);
-
-  @state() public gamesNum = State.from<UInt64>(UInt64);
-
-  public override async initGame(lobby: Lobby, shouldUpdate: Bool): Promise<UInt64> {
-    const currentGameId = lobby.id;
-
-    // Setting active game if opponent found
-    await this.games.set(
-      Provable.if(shouldUpdate, currentGameId, UInt64.from(0)),
-      new GameInfo({
-        player1: lobby.players[0],
-        player2: lobby.players[1],
-        currentMoveUser: lobby.players[0],
-        lastMoveBlockHeight: this.network.block.height,
-        field: PiratesField.from(
-          Array(PIRATES_FIELD_SIZE).fill(Array(PIRATES_FIELD_SIZE).fill(0)),
-        ),
-        winner: PublicKey.empty(),
-      }),
-    );
-
-    await this.gameFund.set(
-      currentGameId,
-      ProtoUInt64.from(lobby.participationFee).mul(2),
-    );
-
-    return await super.initGame(lobby, shouldUpdate);
+export class PiratesLogic extends RuntimeModule<{}>{
+  @state() public players = StateMap.from<PublicKey, Player>(PublicKey, Player);
+  @state() public cannonballs = StateMap.from<PublicKey, CannonBall>(PublicKey, CannonBall);
+  @state() public loots=StateMap.from<UInt64, Loot>(UInt64, Loot);
+  @runtimeMethod()
+  public async spawnShip(){
+    this.players.set(this.transaction.sender.value, Player.init(this.transaction.sender.value, Ship.random()));
   }
 
   @runtimeMethod()
-  public async proveOpponentTimeout(gameId: UInt64): Promise<void> {
-    await super.proveOpponentTimeout(gameId, true);
+  public async changeTurnRate(newTurnRate: UInt64): Promise<void> {
+    const {isSome,value:player}=await this.players.get(this.transaction.sender.value)
+    assert(isSome, "Player does not exist");
+    //integer multiple of K
+    player.ship.turnRate=newTurnRate;
+    this.players.set(this.transaction.sender.value,player);
+  }
+  
+  @runtimeMethod()
+  public async shoot(offsetX:UInt64,offsetY:UInt64): Promise<void> {
+    const {isSome,value:player}=await this.players.get(this.transaction.sender.value)
+    assert(isSome, "Player does not exist");
+    const currentBlockHeight=this.network.block.height;
+    const {isSome:isSomePrevCannonBall,value:prevCannonBall}=await this.cannonballs.get(this.transaction.sender.value);
+    const canShoot=isSomePrevCannonBall.and(prevCannonBall.spawnBlockHeight.add(CANNON_WAIT_TIME).lessThan(currentBlockHeight)).or(isSomePrevCannonBall.not());
+    assert(canShoot, "Cannot shoot");
+
+    const distanceSqr=offsetX.mul(offsetX).add(offsetY.mul(offsetY));
+    const isAtRange=distanceSqr.lessThanOrEqual(UInt64.from(CANNON_RANGE*CANNON_RANGE));
+    assert(isAtRange, "Offset is not inside range");
+
+    const cannonBall=new CannonBall({circle: new Circle({x:offsetX,y:offsetY,r:UInt64.from(1)}),spawnBlockHeight:currentBlockHeight});
+    this.cannonballs.set(this.transaction.sender.value,cannonBall);
   }
 
+  /**
+   * use this to prove that A has shot B 
+   * @param A pubkey of player A
+   * @param B pubkey of player B
+   */
   @runtimeMethod()
-  public async makeMove(
-    gameId: UInt64,
-    newField: PiratesField,
-    winWitness: WinWitness,
-  ): Promise<void> {
-    const sessionSender = await this.sessions.get(this.transaction.sender.value);
-    const sender = Provable.if(
-      sessionSender.isSome,
-      sessionSender.value,
-      this.transaction.sender.value,
-    );
+  public async hit(A:PublicKey,B:PublicKey): Promise<void> {
+    const {isSome:isSomeA,value:playerA}=await this.players.get(A)
+    assert(isSomeA, "Player A does not exist");
+    const {isSome:isSomeB,value:playerB}=await this.players.get(B)
+    assert(isSomeB, "Player B does not exist");
 
-    const game = await this.games.get(gameId);
-    assert(game.isSome, 'Invalid game id');
-    assert(game.value.currentMoveUser.equals(sender), `Not your move`);
-    assert(game.value.winner.equals(PublicKey.empty()), `Game finished`);
+    const {isSome:isSomePrevCannonBall,value:prevCannonBall}=await this.cannonballs.get(A);
+    assert(isSomePrevCannonBall, "Player A never shoot a cannonball");
+    const cannonBallTriggerBlockHeight=prevCannonBall.spawnBlockHeight.add(CANNON_WAIT_TIME);
+    assert(cannonBallTriggerBlockHeight.equals(this.network.block.height),"Cannonball is not shot at this blockHeight");
 
-    winWitness.assertCorrect();
+    //TODO: collision check
+    const isHit=Bool(true);
+    assert(isHit,"Cannonball did not hit the target");
 
-    const winProposed = Bool.and(
-      winWitness.directionX.equals(UInt32.from(0)),
-      winWitness.directionY.equals(UInt32.from(0)),
-    ).not();
+    //update player B's health
+    playerB.ship.health=playerB.ship.health.sub(UInt64.from(CANNON_DAMAGE));
+    this.players.set(B,playerB);
+  }
+  @runtimeMethod()
+  public async pickupLoot(lootId:UInt64): Promise<void> {
+    const {isSome,value:player}=await this.players.get(this.transaction.sender.value);
+    assert(isSome, "Player does not exist");
 
-    const currentUserId = Provable.if(
-      game.value.currentMoveUser.equals(game.value.player1),
-      UInt32.from(1),
-      UInt32.from(2),
-    );
+    const {isSome:isSomeLoot,value:loot}=await this.loots.get(lootId);
+    //TODO: collision check
+    const isHit=Bool(true);
+    assert(isHit,"Cannonball did not hit the target");
 
-    const addedCellsNum = UInt64.from(0);
-    for (let i = 0; i < PIRATES_FIELD_SIZE; i++) {
-      for (let j = 0; j < PIRATES_FIELD_SIZE; j++) {
-        const currentFieldCell = game.value.field.value[i][j];
-        const nextFieldCell = newField.value[i][j];
-
-        assert(
-          Bool.or(
-            currentFieldCell.equals(UInt32.from(0)),
-            currentFieldCell.equals(nextFieldCell),
-          ),
-          `Modified filled cell at ${i}, ${j}`,
-        );
-
-        addedCellsNum.add(
-          Provable.if(
-            currentFieldCell.equals(nextFieldCell),
-            UInt64.from(0),
-            UInt64.from(1),
-          ),
-        );
-
-        assert(
-          addedCellsNum.lessThanOrEqual(UInt64.from(1)),
-          `Exactly one cell should be added. Error at ${i}, ${j}`,
-        );
-        assert(
-          Provable.if(
-            currentFieldCell.equals(nextFieldCell),
-            Bool(true),
-            nextFieldCell.equals(currentUserId),
-          ),
-          'Added opponent`s color',
-        );
-
-        for (let wi = 0; wi < CELLS_LINE_TO_WIN; wi++) {
-          const winPosX = winWitness.directionX
-            .mul(UInt32.from(wi))
-            .add(winWitness.x);
-          const winPosY = winWitness.directionY
-            .mul(UInt32.from(wi))
-            .add(winWitness.y);
-          assert(
-            Bool.or(
-              winProposed.not(),
-              Provable.if(
-                Bool.and(
-                  winPosX.equals(UInt32.from(i)),
-                  winPosY.equals(UInt32.from(j)),
-                ),
-                nextFieldCell.equals(currentUserId),
-                Bool(true),
-              ),
-            ),
-            'Win not proved',
-          );
-        }
-      }
-    }
-
-    game.value.winner = Provable.if(
-      winProposed,
-      game.value.currentMoveUser,
-      PublicKey.empty(),
-    );
-
-    const winnerShare = ProtoUInt64.from(
-      Provable.if<ProtoUInt64>(
-        winProposed,
-        ProtoUInt64,
-        ProtoUInt64.from(1),
-        ProtoUInt64.from(0),
-      ),
-    );
-
-    await this.acquireFunds(
-      gameId,
-      game.value.winner,
-      PublicKey.empty(),
-      winnerShare,
-      ProtoUInt64.from(0),
-      ProtoUInt64.from(1),
-    );
-
-    game.value.field = newField;
-    game.value.currentMoveUser = Provable.if(
-      game.value.currentMoveUser.equals(game.value.player1),
-      game.value.player2,
-      game.value.player1,
-    );
-    game.value.lastMoveBlockHeight = this.network.block.height;
-    await this.games.set(gameId, game.value);
-
-    // Removing active game for players if game ended
-    await this.activeGameId.set(
-      Provable.if(winProposed, game.value.player2, PublicKey.empty()),
-      UInt64.from(0),
-    );
-    await this.activeGameId.set(
-      Provable.if(winProposed, game.value.player1, PublicKey.empty()),
-      UInt64.from(0),
-    );
-
-    await this._onLobbyEnd(gameId, winProposed);
+    //update player's gold
+    const reward=this.getRandomInRange(MIN_LOOT,MAX_LOOT);
+    player.gold=player.gold.add(reward);
+  }
+  /**
+   * uses network hash as seed
+   * @param A a +ve integer
+   * @param B a +ve integer
+   * @returns gives a random number in range A to B
+   */
+  private getRandomInRange(A:number,B:number):UInt64{
+    const seed=Poseidon.hash([this.network.hash(),this.transaction.hash()]);
+    return RandomGenerator.from(seed).getNumber((B-A)).magnitude.add(A);
   }
 }
+
+

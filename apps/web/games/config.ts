@@ -8,7 +8,7 @@ import { tileVilleConfig } from '@/games/tileville/config';
 import { lotteryConfig } from '@/games/lottery/config';
 import { numberGuessingConfig } from './number_guessing/config';
 import { tokenTwistConfig } from './TokenTwist/config';
-import {piratesConfig} from "./Pirates/config";
+import { piratesConfig } from "./Pirates/config";
 
 export const zkNoidConfig = createConfig({
   games: [

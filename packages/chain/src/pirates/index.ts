@@ -1,3 +1,3 @@
-import { PiratesLogic, PiratesField } from "./PiratesLogic.js"
+import { PiratesLogic, } from "./PiratesLogic.js"
 
-export { PiratesLogic, PiratesField };
+export { PiratesLogic };
