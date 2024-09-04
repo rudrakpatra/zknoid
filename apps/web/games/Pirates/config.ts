@@ -4,6 +4,7 @@ import { ZkNoidGameFeature, ZkNoidGameGenre } from '@/lib/platform/game_tags';
 import { LogoMode } from '@/app/constants/games';
 import PiratesPage from './PiratesPage';
 import PiratesLobby from './PiratesLobby';
+import { PiratesLogic } from 'zknoid-chain-dev';
 
 export const piratesConfig = createZkNoidGameConfig({
   id: 'Pirates',
@@ -20,7 +21,7 @@ export const piratesConfig = createZkNoidGameConfig({
   popularity: 0,
   author: 'Rudrak Patra',
   rules: '',
-  runtimeModules: {},
+  runtimeModules: {PiratesLogic},
   page: PiratesPage,
   lobby: PiratesLobby,
   externalUrl: 'https://proto.zknoid.io/games/poker/global'

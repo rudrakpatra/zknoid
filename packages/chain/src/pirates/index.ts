@@ -1,3 +1,3 @@
-import { PiratesLogic, RandzuField, WinWitness } from "./PiratesLogic.js"
+import { PiratesLogic, PiratesField } from "./PiratesLogic.js"
 
-export { PiratesLogic, RandzuField, WinWitness };
+export { PiratesLogic, PiratesField };

@@ -11,15 +11,15 @@ import {
 } from '@/lib/stores/matchQueue';
 import { create } from 'zustand';
 
-export const useRandzuMatchQueueStore = create<
+export const usePiratesMatchQueueStore = create<
   MatchQueueState,
   [['zustand/immer', never]]
 >(matchQueueInitializer);
 
-export const useObserveRandzuMatchQueue = () => {
+export const useObservePiratesMatchQueue = () => {
   const chain = useProtokitChainStore();
   const network = useNetworkStore();
-  const matchQueue = useRandzuMatchQueueStore();
+  const matchQueue = usePiratesMatchQueueStore();
   const { client } = useContext(ZkNoidGameContext);
 
   const client_ = client as ClientAppChain<
@@ -44,11 +44,11 @@ export const useObserveRandzuMatchQueue = () => {
     }
 
     matchQueue.loadMatchQueue(
-      client_.query.runtime.RandzuLogic,
+      client_.query.runtime.PiratesLogic,
       chain.block?.height
     );
     matchQueue.loadActiveGame(
-      client_.query.runtime.RandzuLogic,
+      client_.query.runtime.PiratesLogic,
       chain.block?.height,
       PublicKey.fromBase58(network.address!)
     );

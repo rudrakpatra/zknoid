@@ -3,6 +3,7 @@ import * as ProtokitLibrary from '@proto-kit/library';
 import { UInt64 } from '@proto-kit/library';
 
 export * from './randzu/index.js';
+export * from './pirates/index.js';
 export * from './checkers/index.js';
 export * from './arkanoid/index.js';
 export * from './thimblerig/index.js';

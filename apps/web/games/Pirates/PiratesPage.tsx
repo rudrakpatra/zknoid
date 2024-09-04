@@ -5,9 +5,9 @@ import { GameView } from './components/GameView';
 import { Int64, PublicKey, UInt32, UInt64 } from 'o1js';
 import { useNetworkStore } from '@/lib/stores/network';
 import {
-  useObserveRandzuMatchQueue,
-  useRandzuMatchQueueStore,
-} from '@/games/randzu/stores/matchQueue';
+  useObservePiratesMatchQueue,
+  usePiratesMatchQueueStore,
+} from './stores/matchQueue';
 import { useStore } from 'zustand';
 import { useSessionKeyStore } from '@/lib/stores/sessionKeyStorage';
 import {
@@ -80,18 +80,18 @@ export default function PiratesPage({
   }
 
   const networkStore = useNetworkStore();
-  const matchQueue = useRandzuMatchQueueStore();
+  const matchQueue = usePiratesMatchQueueStore();
   const toasterStore = useToasterStore();
   const rateGameStore = useRateGameStore();
   const protokitChain = useProtokitChainStore();
-  useObserveRandzuMatchQueue();
+  useObservePiratesMatchQueue();
   const sessionPrivateKey = useStore(useSessionKeyStore, (state) =>
     state.getSessionKey()
   );
   const progress = api.progress.setSolvedQuests.useMutation();
   const startGame = useStartGame(competition.id, setGameState);
   const getRatingQuery = api.ratings.getGameRating.useQuery({
-    gameId: 'randzu',
+    gameId: 'Pirates',
   });
 
   const client_ = client as ClientAppChain<
@@ -102,7 +102,7 @@ export default function PiratesPage({
   >;
 
   const query = networkStore.protokitClientStarted
-    ? client_.query.runtime.piratesLogic
+    ? client_.query.runtime.PiratesLogic
     : undefined;
 
   useObserveLobbiesStore(query);
@@ -117,7 +117,7 @@ export default function PiratesPage({
 
   // nonSSR
   const collectPending = async () => {
-    const piratesLogic = client.runtime.resolve('RandzuLogic');
+    const piratesLogic = client.runtime.resolve('PiratesLogic');
 
     const tx = await client.transaction(
       sessionPrivateKey.toPublicKey(),
@@ -139,12 +139,12 @@ export default function PiratesPage({
 
   // nonSSR
   const proveOpponentTimeout = async () => {
-    const randzuLogic = client.runtime.resolve('RandzuLogic');
+    const piratesLogic = client.runtime.resolve('PiratesLogic');
 
     const tx = await client.transaction(
       PublicKey.fromBase58(networkStore.address!),
       async () => {
-        randzuLogic.proveOpponentTimeout(
+        piratesLogic.proveOpponentTimeout(
           UInt64.from(matchQueue.gameInfo!.gameId)
         );
       }

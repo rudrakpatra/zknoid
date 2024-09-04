@@ -17,10 +17,10 @@ import type { QueueListItem } from '../engine/MatchMaker';
 import { UInt64 as ProtoUInt64 } from '@proto-kit/library';
 import { Lobby } from '../engine/LobbyManager';
 
-const RANDZU_FIELD_SIZE = 15;
+const PIRATES_FIELD_SIZE = 15;
 const CELLS_LINE_TO_WIN = 5;
 
-export class WinWitness extends Struct({
+class WinWitness extends Struct({
   x: UInt32,
   y: UInt32,
   directionX: Int64,
@@ -44,14 +44,14 @@ export class WinWitness extends Struct({
   }
 }
 
-export class RandzuField extends Struct({
+export class PiratesField extends Struct({
   value: Provable.Array(
-    Provable.Array(UInt32, RANDZU_FIELD_SIZE),
-    RANDZU_FIELD_SIZE,
+    Provable.Array(UInt32, PIRATES_FIELD_SIZE),
+    PIRATES_FIELD_SIZE,
   ),
 }) {
   static from(value: number[][] | bigint[][]) {
-    return new RandzuField({
+    return new PiratesField({
       value: value.map((row) => row.map((x) => UInt32.from(x))),
     });
   }
@@ -65,14 +65,14 @@ export class RandzuField extends Struct({
     ];
 
     for (const direction of directions) {
-      for (let i = 0; i <= RANDZU_FIELD_SIZE; i++) {
-        for (let j = 0; j <= RANDZU_FIELD_SIZE; j++) {
+      for (let i = 0; i <= PIRATES_FIELD_SIZE; i++) {
+        for (let j = 0; j <= PIRATES_FIELD_SIZE; j++) {
           let combo = 0;
 
           for (let k = 0; k < CELLS_LINE_TO_WIN; k++) {
             if (
-              i + direction[0] * k >= RANDZU_FIELD_SIZE - 1 ||
-              j + direction[1] * k >= RANDZU_FIELD_SIZE - 1 ||
+              i + direction[0] * k >= PIRATES_FIELD_SIZE - 1 ||
+              j + direction[1] * k >= PIRATES_FIELD_SIZE - 1 ||
               i + direction[0] * k < 0 ||
               j + direction[1] * k < 0
             )
@@ -111,7 +111,7 @@ export class GameInfo extends Struct({
   player2: PublicKey,
   currentMoveUser: PublicKey,
   lastMoveBlockHeight: UInt64,
-  field: RandzuField,
+  field: PiratesField,
   winner: PublicKey,
 }) {}
 
@@ -133,8 +133,8 @@ export class PiratesLogic extends MatchMaker {
         player2: lobby.players[1],
         currentMoveUser: lobby.players[0],
         lastMoveBlockHeight: this.network.block.height,
-        field: RandzuField.from(
-          Array(RANDZU_FIELD_SIZE).fill(Array(RANDZU_FIELD_SIZE).fill(0)),
+        field: PiratesField.from(
+          Array(PIRATES_FIELD_SIZE).fill(Array(PIRATES_FIELD_SIZE).fill(0)),
         ),
         winner: PublicKey.empty(),
       }),
@@ -156,7 +156,7 @@ export class PiratesLogic extends MatchMaker {
   @runtimeMethod()
   public async makeMove(
     gameId: UInt64,
-    newField: RandzuField,
+    newField: PiratesField,
     winWitness: WinWitness,
   ): Promise<void> {
     const sessionSender = await this.sessions.get(this.transaction.sender.value);
@@ -185,8 +185,8 @@ export class PiratesLogic extends MatchMaker {
     );
 
     const addedCellsNum = UInt64.from(0);
-    for (let i = 0; i < RANDZU_FIELD_SIZE; i++) {
-      for (let j = 0; j < RANDZU_FIELD_SIZE; j++) {
+    for (let i = 0; i < PIRATES_FIELD_SIZE; i++) {
+      for (let j = 0; j < PIRATES_FIELD_SIZE; j++) {
         const currentFieldCell = game.value.field.value[i][j];
         const nextFieldCell = newField.value[i][j];
 
