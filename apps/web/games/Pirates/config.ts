@@ -19,8 +19,9 @@ export const piratesConfig = createZkNoidGameConfig({
   releaseDate: new Date(2024, 9, 5),
   popularity: 0,
   author: 'Rudrak Patra',
-  rules: '1. Players participate in each round of the game. Each player starts with a ship spawning from a port. The player either sail in the vast ocean looking for gold, or try shooting down other players to get their gold.',
-  runtimeModules: {PiratesLogic},
+  rules:
+    'Each player starts with a ship spawning from a port. The player either sail in the vast ocean looking for gold, or try shooting down other players to get their gold.',
+  runtimeModules: { PiratesLogic },
   page: PiratesPage,
   // externalUrl: 'https://prPoto.zknoid.io/games/pirates/global'
 });

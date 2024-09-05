@@ -14,5 +14,5 @@ export const GameView = (props: IGameViewProps) => {
     };
   }, []);
 
-  return (null);
+  return <canvas width="800" height="800"/>
 };
