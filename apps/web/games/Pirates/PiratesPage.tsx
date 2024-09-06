@@ -12,10 +12,10 @@ import { piratesConfig } from './config';
 import ZkNoidGameContext from '@/lib/contexts/ZkNoidGameContext';
 import { useProtokitChainStore } from '@/lib/stores/protokitChain';
 import { MainButtonState } from '@/components/framework/GamePage/PvPGameView';
-import PiratesCoverSVG from '@/public/image/games/soon.svg';
+import PiratesCoverSVG from '@/public/games/Pirates/cover.jpeg';
 import { api } from '@/trpc/react';
 import { getEnvContext } from '@/lib/envContext';
-import PiratesCoverMobileSVG from '@/public/image/games/soon.svg';
+import PiratesCoverMobileSVG from '@/public/games/Pirates/cover.jpeg';
 import GameWidget from '@/components/framework/GameWidget';
 import { motion } from 'framer-motion';
 import { formatPubkey } from '@/lib/utils';
@@ -158,7 +158,9 @@ export default function PiratesPage() {
         playersCount={5}
         gameId="pirates"
       >
-        <Game />
+        BLOCK #{protokitChain.block?.height}
+        <pre>{JSON.stringify(protokitChain)}</pre>
+        {/* <Game /> */}
         {promptWalletOptions()}
       </GameWidget>
     </GamePage>

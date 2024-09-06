@@ -5,6 +5,7 @@ const SHIP_SIZE=10;
 const MAX_TURN_RATE=60;
 const TURN_RATE_=5;
 
+const INITIAL_GOLD=0;
 const INITIAL_CANNONBALLS=10;
 const CANNON_DAMAGE=2;
 const CANNON_RANGE=1e6;
@@ -12,3 +13,4 @@ const CANNON_COST=1;
 const CANNON_WAIT_TIME=5;
 const MIN_LOOT=1;
 const MAX_LOOT=10;
+const LOOT_SIZE=10;

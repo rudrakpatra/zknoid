@@ -28,19 +28,15 @@ export class Ship extends Struct({
   circle: Circle,
   turnRate: UInt64,
   phase: UInt64,
+  sailing:Bool,
 }) {
-  static random() {
-    // const x=RandomGenerator.from(seed).getNumber(WORLD_SIZE);
-    // const y=RandomGenerator.from(seed).getNumber(WORLD_SIZE);
-    const randomUInt64 = (max: number) =>
-      Provable.witness(UInt64, () => UInt64.from(Math.random() * max));
-    const x = randomUInt64(WORLD_SIZE);
-    const y = randomUInt64(WORLD_SIZE);
+  static spawnAt(x:UInt64,y:UInt64) {
     return new Ship({
       health: UInt64.from(INITIAL_SHIP_HEALTH),
-      circle: new Circle({ x, y, r: UInt64.from(SHIP_SIZE) }),
+      circle: new Circle({x,y,r:UInt64.from(SHIP_SIZE)}),
       turnRate: UInt64.from(MAX_TURN_RATE),
       phase: UInt64.from(0),
+      sailing:Bool(true)
     });
   }
 }
@@ -49,14 +45,14 @@ export class Player extends Struct({
   pubKey: PublicKey,
   ship: Ship,
   gold: UInt64,
-  cannonBalls: UInt64
+  cannonBalls: UInt64,
 }) {
 
   static init(pubKey: PublicKey, ship: Ship) {
     return new Player({
       pubKey,
       ship,
-      gold: UInt64.from(0),
+      gold: UInt64.from(INITIAL_GOLD),
       cannonBalls: UInt64.from(INITIAL_CANNONBALLS),
     });
   }
@@ -69,31 +65,57 @@ export class CannonBall extends Struct({
 
 export class Loot extends Struct({
   circle: Circle,
-}) { }
+}) { 
+}
+
+interface PiratesLogicConfig {}
 
 @runtimeModule()
-export class PiratesLogic extends RuntimeModule<{}> {
+export class PiratesLogic extends RuntimeModule<PiratesLogicConfig> {
   @state() public players = StateMap.from<PublicKey, Player>(PublicKey, Player);
   @state() public cannonballs = StateMap.from<PublicKey, CannonBall>(PublicKey, CannonBall);
   @state() public loots = StateMap.from<UInt64, Loot>(UInt64, Loot);
+  @state() public lootCount = UInt64.from(0);
   @runtimeMethod()
-  public async spawnShip() {
-    this.players.set(this.transaction.sender.value, Player.init(this.transaction.sender.value, Ship.random()));
+  public async spawn() {
+    for(const [a,b,c,d] of this.forRandomValuesInRange(0,WORLD_SIZE,1))
+    {
+      await this.players.set(this.transaction.sender.value, Player.init(this.transaction.sender.value, Ship.spawnAt(a,b)));
+    }
+    //spawn loots
+    for(const [a,b,c,d] of this.forRandomValuesInRange(0,WORLD_SIZE,4))
+    {
+      await this.loots.set(this.lootCount,new Loot({circle:new Circle({x:a,y:b,r:UInt64.from(LOOT_SIZE)})}));
+      this.lootCount=this.lootCount.add(1);
+      await this.loots.set(this.lootCount,new Loot({circle:new Circle({x:c,y:d,r:UInt64.from(LOOT_SIZE)})}));
+    }
+  }
+  @runtimeMethod()
+  public async leave(): Promise<void> {
+    const { isSome, value: player } = await this.players.get(this.transaction.sender.value);
+    assert(isSome, "Player does not exist");
+    assert(player.ship.sailing,"Player is not sailing");
+    player.ship.sailing=Bool(false);
+    await this.players.set(this.transaction.sender.value,player);
   }
 
   @runtimeMethod()
   public async changeTurnRate(newTurnRate: UInt64): Promise<void> {
     const { isSome, value: player } = await this.players.get(this.transaction.sender.value)
     assert(isSome, "Player does not exist");
+    assert(player.ship.sailing,"Player is not sailing");
     //integer multiple of K
     player.ship.turnRate = newTurnRate;
-    this.players.set(this.transaction.sender.value, player);
+    await this.players.set(this.transaction.sender.value, player);
   }
 
   @runtimeMethod()
   public async shoot(offsetX: UInt64, offsetY: UInt64): Promise<void> {
     const { isSome, value: player } = await this.players.get(this.transaction.sender.value)
     assert(isSome, "Player does not exist");
+    assert(player.ship.sailing,"Player is not sailing");
+    assert(player.cannonBalls.equals(UInt64.from(0)).not(),"Player does not have cannonballs");
+
     const currentBlockHeight = this.network.block.height;
     const { isSome: isSomePrevCannonBall, value: prevCannonBall } = await this.cannonballs.get(this.transaction.sender.value);
     const canShoot = isSomePrevCannonBall.and(prevCannonBall.spawnBlockHeight.add(CANNON_WAIT_TIME).lessThan(currentBlockHeight)).or(isSomePrevCannonBall.not());
@@ -104,7 +126,7 @@ export class PiratesLogic extends RuntimeModule<{}> {
     assert(isAtRange, "Offset is not inside range");
 
     const cannonBall = new CannonBall({ circle: new Circle({ x: offsetX, y: offsetY, r: UInt64.from(1) }), spawnBlockHeight: currentBlockHeight });
-    this.cannonballs.set(this.transaction.sender.value, cannonBall);
+    await this.cannonballs.set(this.transaction.sender.value, cannonBall);
   }
 
   /**
@@ -116,11 +138,13 @@ export class PiratesLogic extends RuntimeModule<{}> {
   public async hit(A: PublicKey, B: PublicKey): Promise<void> {
     const { isSome: isSomeA, value: playerA } = await this.players.get(A)
     assert(isSomeA, "Player A does not exist");
+    assert(playerA.ship.sailing,"PlayerA is not sailing");
     const { isSome: isSomeB, value: playerB } = await this.players.get(B)
     assert(isSomeB, "Player B does not exist");
+    assert(playerB.ship.sailing,"PlayerB is not sailing");
 
     const { isSome: isSomePrevCannonBall, value: prevCannonBall } = await this.cannonballs.get(A);
-    assert(isSomePrevCannonBall, "Player A never shoot a cannonball");
+    assert(isSomePrevCannonBall, "Player A never shot a cannonball");
     const cannonBallTriggerBlockHeight = prevCannonBall.spawnBlockHeight.add(CANNON_WAIT_TIME);
     assert(cannonBallTriggerBlockHeight.equals(this.network.block.height), "Cannonball is not shot at this blockHeight");
 
@@ -130,12 +154,13 @@ export class PiratesLogic extends RuntimeModule<{}> {
 
     //update player B's health
     playerB.ship.health = playerB.ship.health.sub(UInt64.from(CANNON_DAMAGE));
-    this.players.set(B, playerB);
+    await this.players.set(B, playerB);
   }
   @runtimeMethod()
   public async pickupLoot(lootId: UInt64): Promise<void> {
     const { isSome, value: player } = await this.players.get(this.transaction.sender.value);
     assert(isSome, "Player does not exist");
+    assert(player.ship.sailing,"Player is not sailing");
 
     const { isSome: isSomeLoot, value: loot } = await this.loots.get(lootId);
     //TODO: collision check
@@ -145,6 +170,11 @@ export class PiratesLogic extends RuntimeModule<{}> {
     //update player's gold
     const reward = this.getRandomInRange(MIN_LOOT, MAX_LOOT);
     player.gold = player.gold.add(reward);
+    await this.players.set(this.transaction.sender.value, player);
+    for(const [a,b,c,d] of this.forRandomValuesInRange(0,WORLD_SIZE,1))
+    {
+      await this.loots.set(lootId, new Loot({circle:new Circle({ x: a, y: b ,r:UInt64.from(LOOT_SIZE)})}));
+    }
   }
   /**
    * uses network hash as seed
@@ -155,6 +185,18 @@ export class PiratesLogic extends RuntimeModule<{}> {
   private getRandomInRange(A: number, B: number): UInt64 {
     const seed = Poseidon.hash([this.network.hash(), this.transaction.hash()]);
     return RandomGenerator.from(seed).getNumber((B - A)).magnitude.add(A);
+  }
+  /**
+   * uses network hash as seed
+   * @param A a +ve integer
+   * @param B a +ve integer
+   * @returns gives random numbers in range A to B
+   */
+  private forRandomValuesInRange(A: number, B: number,count:number):[UInt64,UInt64,UInt64,UInt64][] {
+    return Array(count).fill(0).map((_,i)=>{
+      const seed = Poseidon.hash([this.network.hash(), this.transaction.hash(),Field(i)]);
+      return RandomGenerator.from(seed).getNumbers(([B - A,B-A,B-A,B-A])).map((x)=>x.magnitude.add(A)) as [UInt64,UInt64,UInt64,UInt64];
+    });
   }
 }
 

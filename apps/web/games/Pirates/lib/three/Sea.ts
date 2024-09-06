@@ -12,7 +12,7 @@ export class Sea {
 		time: { value: number };
 		grid: { value: number };
 	};
-	private scaleHeight = .5;
+	private scaleHeight = .8;
 
 	constructor(size: Size2) {
 		this.size = size;

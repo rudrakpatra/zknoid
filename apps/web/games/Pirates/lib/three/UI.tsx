@@ -135,7 +135,7 @@ export const Game: React.FC = () => {
   const turnRateChoiceMenu = () => TURN_RATE_OPTIONS.map(turnRateChoice);
 
   return (
-    <div className="flex h-[80vh] flex-row gap-2">
+    <div className="flex h-[90vh] flex-row gap-2">
       <canvas
         ref={canvasRef}
         height={CANVAS_SIZE.h}
