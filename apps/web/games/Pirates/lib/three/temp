@@ -1,0 +1,129 @@
+import * as THREE from 'three';
+import type { Size2 } from './Utils';
+
+export class Sea {
+	private size: Size2;
+	private geometry: THREE.PlaneGeometry;
+	private material: THREE.ShaderMaterial;
+	private seaMesh: THREE.Mesh;
+	private waterNormalMap: THREE.Texture | null;
+	private clock: THREE.Clock;
+
+	constructor(size: Size2) {
+		this.size = size;
+		this.waterNormalMap = null;
+		this.clock = new THREE.Clock();
+		this.geometry = new THREE.PlaneGeometry(this.size.w, this.size.h, 15, 15);
+		this.geometry.rotateX(-Math.PI * 0.5);
+		this.material = this.createSeaMaterial();
+		this.seaMesh = new THREE.Mesh(this.geometry, this.material);
+	}
+
+	async loadTextures(): Promise<void> {
+		const textureLoader = new THREE.TextureLoader();
+		this.waterNormalMap = await new Promise<THREE.Texture>((resolve) => {
+			textureLoader.load('https://threejs.org/examples/textures/waternormals.jpg', (texture) => {
+				texture.format = THREE.RGBAFormat;
+				texture.magFilter = THREE.LinearFilter;
+				texture.minFilter = THREE.LinearMipMapLinearFilter;
+				texture.generateMipmaps = true;
+				texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+				texture.offset.set(0, 0);
+				texture.repeat.set(1, 1);
+				texture.needsUpdate = true;
+				resolve(texture);
+			});
+		});
+		this.material.uniforms.normalMap.value = this.waterNormalMap;
+	}
+
+	private createSeaMaterial(): THREE.ShaderMaterial {
+		return new THREE.ShaderMaterial({
+			uniforms: {
+				time: { value: 0 },
+				grid: { value: this.size.w },
+				normalMap: { value: null }
+			},
+			vertexShader: `
+                uniform float time;
+                uniform float grid;
+                varying float vHeight;
+                varying vec2 vUv;
+
+                vec3 moveWave(vec3 p) {
+                    vec3 retVal = p;
+                    float kzx = 360.0 / grid;
+                    float ang;
+
+                    // Wave1 (135 degrees)
+                    ang = 50.0 * time + -1.0 * p.x * kzx + -2.0 * p.z * kzx;
+                    ang = mod(ang, 360.0) * 3.14159265 / 180.0;
+                    retVal.y = 3.0 * sin(ang);
+
+                    // Wave2 (090)
+                    ang = 25.0 * time + -3.0 * p.x * kzx;
+                    ang = mod(ang, 360.0) * 3.14159265 / 180.0;
+                    retVal.y += 2.0 * sin(ang);
+
+                    // Wave3 (180 degrees)
+                    ang = 15.0 * time - 3.0 * p.z * kzx;
+                    ang = mod(ang, 360.0) * 3.14159265 / 180.0;
+                    retVal.y += 2.0 * sin(ang);
+
+                    // Wave4 (225 degrees)
+                    ang = 50.0 * time + 4.0 * p.x * kzx + 8.0 * p.z * kzx;
+                    ang = mod(ang, 360.0) * 3.14159265 / 180.0;
+                    retVal.y += 0.5 * sin(ang);
+
+                    // Wave5 (270 degrees)
+                    ang = 50.0 * time + 8.0 * p.x * kzx;
+                    ang = mod(ang, 360.0) * 3.14159265 / 180.0;
+                    retVal.y += 0.5 * sin(ang);
+
+                    return retVal;
+                }
+
+                void main() {
+                    vUv = uv;
+                    vec3 p = position;
+                    vec2 move = vec2(1, 0);
+                    vec3 pos = moveWave(p);
+                    vec3 pos2 = moveWave(p + move.xyy);
+                    vec3 pos3 = moveWave(p + move.yyx);
+
+                    vec3 normal = normalize(cross(normalize(pos2 - pos), normalize(pos3 - pos)));
+                    vHeight = pos.y;
+
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+                }
+            `,
+			fragmentShader: `
+                uniform sampler2D normalMap;
+                varying float vHeight;
+                varying vec2 vUv;
+
+                void main() {
+                    vec3 normalColor = texture2D(normalMap, vUv).rgb;
+                    vec3 baseColor = mix(vec3(0.03125, 0.0625, 0.5), vec3(0.1, 0.2, 0.6), smoothstep(0.0, 6.0, vHeight));
+                    if (vHeight > 7.0) {
+                        baseColor = vec3(0.2, 0.3, 0.7);
+                    }
+                    gl_FragColor = vec4(baseColor * normalColor, 1.0);
+                }
+            `
+		});
+	}
+
+	mesh(): THREE.Mesh {
+		return this.seaMesh;
+	}
+
+	update(): void {
+		const elapsedTime = this.clock.getElapsedTime();
+		this.material.uniforms.time.value = elapsedTime;
+		if (this.waterNormalMap) {
+			this.waterNormalMap.offset.x -= 0.0005;
+			this.waterNormalMap.offset.y += 0.00025;
+		}
+	}
+}

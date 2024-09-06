@@ -6,9 +6,7 @@ import { Int64, PublicKey, UInt32, UInt64 } from 'o1js';
 import { useNetworkStore } from '@/lib/stores/network';
 import { useStore } from 'zustand';
 import { useSessionKeyStore } from '@/lib/stores/sessionKeyStorage';
-import {
-  ClientAppChain,
-} from 'zknoid-chain-dev';
+import { ClientAppChain } from 'zknoid-chain-dev';
 import GamePage from '@/components/framework/GamePage';
 import { piratesConfig } from './config';
 import ZkNoidGameContext from '@/lib/contexts/ZkNoidGameContext';
@@ -33,6 +31,7 @@ import { GameWrap } from '@/components/framework/GamePage/GameWrap';
 import toast from '@/components/shared/Toast';
 import { useToasterStore } from '@/lib/stores/toasterStore';
 import { GameState } from './lib/gameState';
+import { Game } from './lib/three/UI';
 
 export default function PiratesPage() {
   const [gameState, setGameState] = useState(GameState.NotStarted);
@@ -56,7 +55,6 @@ export default function PiratesPage() {
       case GameState.Sailing:
       case GameState.Cutscene:
         setLoading(false);
-        setLoadingElement(undefined);
         break;
     }
   }, [gameState]);
@@ -128,12 +126,11 @@ export default function PiratesPage() {
     </GameWrap>
   );
 
-  const promptWalletOptions=()=>{
-    if(networkStore.address)return null;
-    if(walletInstalled())
-       return connectWalletBtn()
-    return installWalletBtn()
-  }
+  const promptWalletOptions = () => {
+    if (networkStore.address) return null;
+    if (walletInstalled()) return connectWalletBtn();
+    return installWalletBtn();
+  };
   return (
     <GamePage
       gameConfig={piratesConfig}
@@ -141,37 +138,29 @@ export default function PiratesPage() {
       mobileImage={PiratesCoverMobileSVG}
       defaultPage={'Game'}
     >
-      <motion.div
+      <div className={'flex flex-col gap-4'}>
+        <span className={'w-full text-headline-2 font-bold'}>Rules</span>
+        <span className={'font-plexsans text-buttons-menu font-normal'}>
+          {piratesConfig.rules}
+        </span>
+      </div>
+      <div
         className={
-          'flex grid-cols-4 flex-col-reverse gap-4 pt-10 lg:grid lg:pt-0'
-        } animate={'windowed'}>
-        <div className={'flex flex-col gap-4 lg:hidden'}>
-          <span className={'w-full text-headline-2 font-bold'}>Rules</span>
-          <span className={'font-plexsans text-buttons-menu font-normal'}>
-            {piratesConfig.rules}
-          </span>
-        </div>
-        <div className={'hidden h-full w-full flex-col gap-4 lg:flex'}>
-          <div
-            className={
-              'flex w-full gap-2 font-plexsans text-[20px]/[20px] uppercase text-left-accent'
-            }
-          >
-            <span>Game status:</span>
-            <span>{statuses[gameState]}</span>
-          </div>
-
-        </div>
-        <GameWidget
-          author={piratesConfig.author}
-          isPvp
-          playersCount={5}
-          gameId="pirates"
-        >
-          <GameView loading={loading} />
-          {promptWalletOptions()}
-        </GameWidget>
-      </motion.div>
+          'flex w-full gap-2 font-plexsans text-[20px]/[20px] uppercase text-left-accent'
+        }
+      >
+        <span>Game status:</span>
+        <span>{statuses[gameState]}</span>
+      </div>
+      <GameWidget
+        author={piratesConfig.author}
+        isPvp
+        playersCount={5}
+        gameId="pirates"
+      >
+        <Game />
+        {promptWalletOptions()}
+      </GameWidget>
     </GamePage>
   );
 }

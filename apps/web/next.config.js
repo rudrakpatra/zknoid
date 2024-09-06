@@ -1,5 +1,6 @@
 const TerserPlugin = require('terser-webpack-plugin');
 const path = require('path');
+const withTM = require('next-transpile-modules')(['three']);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -33,6 +34,11 @@ const nextConfig = {
         },
       };
     }
+
+    config.module.rules.push({
+      test: /\.(gltf)$/,
+      use: 'raw-loader',
+    });
 
     config.experiments = { ...config.experiments, topLevelAwait: true };
     return {
