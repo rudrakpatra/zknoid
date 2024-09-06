@@ -12,6 +12,7 @@ import {
   Field,
 } from 'o1js';
 import { RandomGenerator } from '../engine';
+import { CANNON_DAMAGE, CANNON_RANGE, CANNON_WAIT_TIME, INITIAL_CANNONBALLS, INITIAL_GOLD, INITIAL_SHIP_HEALTH, LOOT_SIZE, MAX_LOOT, MAX_TURN_RATE, MIN_LOOT, SHIP_SIZE, WORLD_SIZE } from './constants';
 
 export class Circle extends Struct({
   x: UInt64,

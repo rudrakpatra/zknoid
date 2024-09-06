@@ -158,9 +158,9 @@ export default function PiratesPage() {
         playersCount={5}
         gameId="pirates"
       >
-        BLOCK #{protokitChain.block?.height}
-        <pre>{JSON.stringify(protokitChain)}</pre>
-        {/* <Game /> */}
+        {/* BLOCK #{protokitChain.block?.height} */}
+        {/* <pre>{JSON.stringify(protokitChain)}</pre> */}
+        <Game />
         {promptWalletOptions()}
       </GameWidget>
     </GamePage>
