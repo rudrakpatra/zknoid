@@ -14,7 +14,7 @@ import {
     material: PointsMaterial;
     lifespan: number;
   
-    constructor(position: Vector3, particleCount: number = 1000,spread: number = 5, size: number = 1, lifespan: number = 2) {
+    constructor(position: Vector3, particleCount: number = 1000,spread: number = 5, size: number = .3, lifespan: number = 2) {
       this.lifespan = lifespan;
       this.geometry = new BufferGeometry();
       this.material = new PointsMaterial({

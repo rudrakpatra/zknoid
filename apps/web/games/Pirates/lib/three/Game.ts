@@ -128,7 +128,8 @@ export class GameInstance {
     this.camera.lookAt(new Vector3(0, 0, 0).add(this.cameraLookAtOffset));
 
     this.sea = new Sea(this.size);
-    this.scene.add(this.sea.mesh());
+    this.scene.add(this.sea.getMesh());
+    this.scene.add(this.sea.getFoamParticles());
 
     this.gizmo = new Gizmo(
       this.player.ship.range,
@@ -148,7 +149,11 @@ export class GameInstance {
     );
     this.plane = new Mesh(
       new PlaneGeometry(this.size.w, this.size.h).rotateX(-Math.PI / 2),
-      new MeshBasicMaterial({ transparent: true, opacity: 0 })
+      new MeshBasicMaterial({
+        depthWrite: false,
+        depthTest: false,
+        visible: false,
+      })
     );
     this.scene.add(this.plane);
   }
@@ -359,6 +364,7 @@ export class GameInstance {
   private updateSceneObjects() {
     this.scene.traverse((child) => {
       if (child.name === 'ship' || child.name === 'loot') {
+        this.sea.addWeight(child);
         this.sea.align(child);
       }
       if (child.name === 'ship') {

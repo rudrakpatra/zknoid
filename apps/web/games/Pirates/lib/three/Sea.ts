@@ -1,34 +1,39 @@
 import * as THREE from 'three';
+import { Foam } from './Foam';
 import type { Size2 } from './Utils';
 
 export class Sea {
-	private size: Size2;
-	private geometry: THREE.PlaneGeometry;
-	private material: THREE.MeshStandardMaterial;
-	private seaMesh: THREE.Mesh;
-	private waterNormalMap: THREE.Texture | null;
-	private clock: THREE.Clock;
-	private uniforms: {
-		time: { value: number };
-		grid: { value: number };
-	};
-	private scaleHeight = .8;
+    private size: Size2;
+    private geometry: THREE.PlaneGeometry;
+    private material: THREE.MeshStandardMaterial;
+    private mesh: THREE.Mesh;
+    private clock: THREE.Clock;
+    private uniforms: {
+        time: { value: number };
+        grid: { value: number };
+    };
+    private scaleHeight = 0.8;
+    private foam: Foam;
+    private weightMask: boolean[][];
 
-	constructor(size: Size2) {
-		this.size = size;
-		this.waterNormalMap = null;
-		this.clock = new THREE.Clock();
-		this.geometry = new THREE.PlaneGeometry(this.size.w, this.size.h, 200, 200);
-		this.geometry.rotateX(-Math.PI * 0.5);
-		this.uniforms = {
-			time: { value: 0 },
-			grid: { value: this.size.w / 2 }
-		};
-		this.material = this.createSeaMaterial();
-		this.seaMesh = new THREE.Mesh(this.geometry, this.material);
-		this.seaMesh.scale.setY(this.scaleHeight);
-	}
-	private createSeaMaterial(): THREE.MeshStandardMaterial {
+    constructor(size: Size2) {
+        this.size = size;
+        this.clock = new THREE.Clock();
+        this.geometry = new THREE.PlaneGeometry(this.size.w, this.size.h, 200, 200);
+        this.geometry.rotateX(-Math.PI * 0.5);
+        this.uniforms = {
+            time: { value: 0 },
+            grid: { value: this.size.w / 2 }
+        };
+        this.material = this.createSeaMaterial();
+        this.mesh = new THREE.Mesh(this.geometry, this.material);
+        this.mesh.scale.setY(this.scaleHeight);
+
+        this.foam = new Foam(this, 5000); // Create 5,000 foam particles
+        this.weightMask = Array(Math.ceil(size.w / 10)).fill(null).map(() => Array(Math.ceil(size.h / 10)).fill(false));
+    }
+
+    private createSeaMaterial(): THREE.MeshStandardMaterial {
 		const material = new THREE.MeshStandardMaterial({
 			color: 0x0088aa,
 			roughness: 1
@@ -102,7 +107,7 @@ export class Sea {
 		return material;
 	}
 
-	align(obj: THREE.Object3D) {
+    align(obj: THREE.Object3D) {
 		// 3 points pinning method
 		const offsetX = 1;
 		const offsetY = 1;
@@ -143,7 +148,8 @@ export class Sea {
 		// Update chd's matrix
 		obj.updateMatrix();
 	}
-	getHeightAt(pos: THREE.Vector3) {
+
+    getHeightAt(pos: THREE.Vector3) {
 		const grid = this.uniforms.grid.value;
 		const time = this.uniforms.time.value;
 
@@ -179,17 +185,34 @@ export class Sea {
 		return retVal.y * this.scaleHeight;
 	}
 
-	mesh(): THREE.Mesh {
-		return this.seaMesh;
-	}
+    addWeight(obj: THREE.Object3D) {
+        const gridX = Math.floor((obj.position.x + this.size.w / 2) / 10);
+        const gridZ = Math.floor((obj.position.z + this.size.h / 2) / 10);
 
-	update(): void {
-		const elapsedTime = this.clock.getElapsedTime();
-		this.uniforms.time.value = elapsedTime;
+        if (gridX >= 0 && gridX < this.weightMask.length && gridZ >= 0 && gridZ < this.weightMask[0].length) {
+            this.weightMask[gridX][gridZ] = true;
+        }
+    }
 
-		// if (this.waterNormalMap) {
-		// 	this.waterNormalMap.offset.x -= 0.0005;
-		// 	this.waterNormalMap.offset.y += 0.00025;
-		// }
-	}
+    getScaleHeight(): number {
+        return this.scaleHeight;
+    }
+
+    getSize(): Size2 {
+        return this.size;
+    }
+
+    update(): void {
+        const elapsedTime = this.clock.getElapsedTime();
+        this.uniforms.time.value = elapsedTime;
+        this.foam.update(this.weightMask);
+    }
+
+    getMesh(): THREE.Mesh {
+        return this.mesh;
+    }
+
+    getFoamParticles(): THREE.Points {
+        return this.foam.particles;
+    }
 }

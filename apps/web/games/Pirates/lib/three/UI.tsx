@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { create } from 'zustand';
+import { create, useStore } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { Vector2 } from 'three';
 import { useNotificationStore } from '@/components/shared/Notification/lib/notificationStore';
@@ -15,6 +15,7 @@ import {
 } from './Constants';
 import { formatUnits } from '@/lib/unit';
 import { Currency } from '@/constants/currency';
+import { useSessionKeyStore } from '@/lib/stores/sessionKeyStorage';
 
 export const useGameStore = create<GameState>()(
   immer((set) => ({
@@ -133,6 +134,10 @@ export const Game: React.FC = () => {
   );
 
   const turnRateChoiceMenu = () => TURN_RATE_OPTIONS.map(turnRateChoice);
+
+  const sessionPrivateKey = useStore(useSessionKeyStore, (state) =>
+    state.getSessionKey()
+  );
 
   return (
     <div className="flex h-[90vh] flex-row gap-2">

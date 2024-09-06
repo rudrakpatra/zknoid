@@ -6,7 +6,7 @@ import { Int64, PublicKey, UInt32, UInt64 } from 'o1js';
 import { useNetworkStore } from '@/lib/stores/network';
 import { useStore } from 'zustand';
 import { useSessionKeyStore } from '@/lib/stores/sessionKeyStorage';
-import { ClientAppChain } from 'zknoid-chain-dev';
+import { ClientAppChain, PiratesLogic } from 'zknoid-chain-dev';
 import GamePage from '@/components/framework/GamePage';
 import { piratesConfig } from './config';
 import ZkNoidGameContext from '@/lib/contexts/ZkNoidGameContext';
@@ -32,6 +32,8 @@ import toast from '@/components/shared/Toast';
 import { useToasterStore } from '@/lib/stores/toasterStore';
 import { GameState } from './lib/gameState';
 import { Game } from './lib/three/UI';
+import { Txns } from './stores/PiratesLogicClient';
+import { useNotificationStore } from '@/components/shared/Notification/lib/notificationStore';
 
 export default function PiratesPage() {
   const [gameState, setGameState] = useState(GameState.NotStarted);
@@ -41,14 +43,8 @@ export default function PiratesPage() {
   if (!client) {
     throw Error('Context app chain client is not set');
   }
-
   const networkStore = useNetworkStore();
   const toasterStore = useToasterStore();
-  // const rateGameStore = useRateGameStore();
-  const protokitChain = useProtokitChainStore();
-  const sessionPrivateKey = useStore(useSessionKeyStore, (state) =>
-    state.getSessionKey()
-  );
 
   useEffect(() => {
     switch (gameState) {
@@ -65,16 +61,6 @@ export default function PiratesPage() {
     else setGameState(GameState.NotStarted);
   }, [networkStore.address]);
 
-  const mainButtonState = loading
-    ? MainButtonState.TransactionExecution
-    : (
-        {
-          [GameState.NotStarted]: MainButtonState.NotStarted,
-          [GameState.WalletNotInstalled]: MainButtonState.WalletNotInstalled,
-          [GameState.WalletNotConnected]: MainButtonState.WalletNotConnected,
-        } as Record<GameState, MainButtonState>
-      )[gameState] || MainButtonState.None;
-
   const statuses = {
     [GameState.WalletNotInstalled]: 'WALLET NOT INSTALLED',
     [GameState.WalletNotConnected]: 'WALLET NOT CONNECTED',
@@ -90,30 +76,44 @@ export default function PiratesPage() {
       );
   }, [gameState]);
 
-  const buttonComponent = (label: string) => (
-    <>
-      <Button
-        startContent={
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              fillRule="evenodd"
-              clipRule="evenodd"
-              d="M12.5134 10.5851L1.476 0L0.00136988 1.41421L11.0387 11.9994L0 22.5858L1.47463 24L12.5134 13.4136L22.5242 23.0143L23.9989 21.6001L13.988 11.9994L23.9975 2.39996L22.5229 0.98575L12.5134 10.5851Z"
-              fill="#252525"
-            />
-          </svg>
-        }
-        label={label}
-        isReadonly
-      />
-    </>
+  const notificationStore = useNotificationStore();
+
+  const sessionPrivateKey = useStore(useSessionKeyStore, (state) =>
+    state.getSessionKey()
   );
+
+  const buttonComponent = (
+    label: string,
+    action: () => Promise<void>,
+    success: string | null = null,
+    failed: string | null = null
+  ) => {
+    const y = () => {
+      success &&
+        notificationStore.create({
+          type: 'success',
+          message: success,
+        });
+    };
+    const n = () => {
+      failed &&
+        notificationStore.create({
+          type: 'error',
+          message: failed,
+        });
+    };
+    return (
+      <button
+        className={`rounded-xl bg-left-accent p-2 text-black`}
+        onClick={() => {
+          console.log('clicked');
+          action().then(y).catch(n);
+        }}
+      >
+        {label}
+      </button>
+    );
+  };
 
   const connectWalletBtn = () => (
     <GameWrap>
@@ -130,6 +130,27 @@ export default function PiratesPage() {
     if (networkStore.address) return null;
     if (walletInstalled()) return connectWalletBtn();
     return installWalletBtn();
+  };
+
+  const promptToSpawn = () => {
+    if (!networkStore.address) return null;
+    return (
+      <div
+        className={
+          'grid h-[80vh] place-content-center gap-4 rounded-lg bg-zinc-900'
+        }
+      >
+        <span className={'text-center text-headline-1 text-left-accent'}>
+          you must buy a ship to start the game
+        </span>
+        {buttonComponent(
+          'BUY SHIP',
+          () => Txns.spawn(sessionPrivateKey),
+          'Game started',
+          'Could not start game'
+        )}
+      </div>
+    );
   };
   return (
     <GamePage
@@ -158,9 +179,8 @@ export default function PiratesPage() {
         playersCount={5}
         gameId="pirates"
       >
-        {/* BLOCK #{protokitChain.block?.height} */}
-        {/* <pre>{JSON.stringify(protokitChain)}</pre> */}
-        <Game />
+        {/* <Game /> */}
+        {promptToSpawn()}
         {promptWalletOptions()}
       </GameWidget>
     </GamePage>

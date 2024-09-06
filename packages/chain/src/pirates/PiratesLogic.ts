@@ -1,6 +1,5 @@
 import { state, runtimeMethod, runtimeModule, Runtime, RuntimeModule } from '@proto-kit/module';
-import type { Option } from '@proto-kit/protocol';
-import { State, StateMap, assert } from '@proto-kit/protocol';
+import { StateMap, assert } from '@proto-kit/protocol';
 import {
   PublicKey,
   Struct,
