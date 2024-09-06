@@ -13,6 +13,8 @@ import {
   INITIAL_GOLD,
   INITIAL_TURN_RATE,
 } from './Constants';
+import { formatUnits } from '@/lib/unit';
+import { Currency } from '@/constants/currency';
 
 export const useGameStore = create<GameState>()(
   immer((set) => ({
@@ -61,7 +63,18 @@ export const Game: React.FC = () => {
   const { health, cannonballs, gold, offsetX, offsetY, turnRate, setTurnRate } =
     gameState;
 
-  if (gameInstanceRef.current) gameInstanceRef.current.gameState = gameState;
+  if (gameInstanceRef.current) {
+    gameInstanceRef.current.gameState = gameState;
+    gameInstanceRef.current.onLootCollection = async (id) => {
+      await simulate();
+      const reward = Math.floor(Math.random() * 10) + 1;
+      gameState.setGold(gameState.gold + reward);
+      notificationStore.create({
+        type: 'success',
+        message: `You collected loot${id}: ${reward} gold`,
+      });
+    };
+  }
 
   useEffect(() => {
     if (canvasRef.current) {
@@ -132,13 +145,13 @@ export const Game: React.FC = () => {
       />
       <div className="flex flex-col gap-1">
         <span>Ship Health:</span>
-        <span className="rounded-xl bg-zinc-700 p-2">{health}</span>
+        <span className="mb-2 rounded-xl bg-zinc-700 p-2">{health}</span>
         <span>Cannon Balls:</span>
-        <span className="rounded-xl bg-zinc-700 p-2">{cannonballs}</span>
+        <span className="mb-2 rounded-xl bg-zinc-700 p-2">{cannonballs}</span>
         <span>Gold Collected:</span>
-        <span className="rounded-xl bg-zinc-700 p-2">{gold}</span>
+        <span className="mb-2 rounded-xl bg-zinc-700 p-2">{gold}</span>
         <span>Offset:</span>
-        <span className="rounded-xl bg-zinc-700 p-2">
+        <span className="mb-2 rounded-xl bg-zinc-700 p-2">
           {offsetX.toFixed(2)} , {offsetY.toFixed(2)}
         </span>
         <span>Set Turn Rate:</span>

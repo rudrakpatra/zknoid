@@ -29,6 +29,7 @@ import {
   INITIAL_TURN_RATE,
   MAX_TURN_RATE,
   SHIP_RANGE,
+  SHIP_SIZE,
 } from './Constants';
 
 export interface GameState {
@@ -48,6 +49,7 @@ export interface GameState {
 class Ship {
   ref: number | null = null;
   cannonball: Cannonball | null = null;
+  size = SHIP_SIZE;
   constructor(
     public turnRate = INITIAL_TURN_RATE,
     public maxTurnRate = MAX_TURN_RATE,
@@ -212,7 +214,6 @@ export class GameInstance {
     }
     this.onInput(intersects);
   }
-
   private updateMousePosition(event: MouseEvent) {
     const rect = this.canvas.getBoundingClientRect();
     this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -224,6 +225,9 @@ export class GameInstance {
   }
 
   onChange(intersects: Intersection[]) {
+    // Implementation remains the same
+  }
+  onLootCollection(lootId: number) {
     // Implementation remains the same
   }
 
@@ -266,12 +270,36 @@ export class GameInstance {
   }
 
   private updatePlayerShip(delta: number) {
-    if (this.player.ship.ref) {
-      const playerShip = this.scene.getObjectById(this.player.ship.ref);
-      if (playerShip) {
-        this.updateShipTurnRate(playerShip);
-        this.updateGizmo(playerShip);
-        this.checkCannonballFiring(playerShip);
+    if (!this.player.ship.ref) return;
+
+    const playerShip = this.scene.getObjectById(this.player.ship.ref);
+    if (!playerShip) return;
+
+    this.updateShipTurnRate(playerShip);
+    this.updateGizmo(playerShip);
+    this.checkCannonballFiring(playerShip);
+
+    const playerPosition = new Vector3();
+    playerShip.getWorldPosition(playerPosition);
+
+    // Maintain a separate array for loots
+    const loots: Object3D[] = [];
+    this.scene.traverse((child) => {
+      if (child.name === 'loot') {
+        loots.push(child);
+      }
+    });
+
+    // Iterate through the loots array
+    for (let i = loots.length - 1; i >= 0; i--) {
+      const loot = loots[i];
+      const lootPosition = new Vector3();
+      loot.getWorldPosition(lootPosition);
+
+      if (lootPosition.distanceTo(playerPosition) < this.player.ship.size) {
+        loot.removeFromParent();
+        this.onLootCollection(loot.id);
+        loots.splice(i, 1);
       }
     }
   }
@@ -329,7 +357,7 @@ export class GameInstance {
   }
 
   private updateSceneObjects() {
-    this.scene.children.forEach((child) => {
+    this.scene.traverse((child) => {
       if (child.name === 'ship' || child.name === 'loot') {
         this.sea.align(child);
       }
