@@ -123,6 +123,7 @@ const usePirateStore = create<PirateState>((set, get) => ({
         .players.get(key);
       if (isSome.not().toBoolean()) return false;
       newPlayers.set(key.toBase58(), player);
+      console.log('Pirates:', key.toBase58(), player);
       return true;
     };
 
@@ -147,6 +148,7 @@ const usePirateStore = create<PirateState>((set, get) => ({
         .resolve('PiratesLogic')
         .loots.get(currentLootKey);
       if (isSome.not().toBoolean()) break;
+      console.log('Pirates:', currentLootKey, loot);
       newLoots.set(currentLootKey.toString(), loot);
       currentLootKey = currentLootKey.add(1);
     }

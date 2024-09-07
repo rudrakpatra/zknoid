@@ -141,84 +141,61 @@ export class PiratesLogic extends RuntimeModule<PiratesLogicConfig> {
   @state() public lootTop = State.from<UInt64>(UInt64);
 
   @runtimeMethod()
-  private async insertPlayer(curr: PublicKey, x: UInt64, y: UInt64) {
-    const blockHeight = new UInt64(this.network.block.height);
-    const head = PublicKey.empty();
-    const headV = (await this.players.get(PublicKey.empty())).value;
-    const next = headV.next;
-    const nextV = (await this.players.get(headV.next)).value;
-    //insert between head and next
-    await this.players.set(
-      curr,
-      new Player({
-        ...headV,
-        next: curr,
-      }),
-    );
-    await this.players.set(
-      curr,
-      Player.startSailing(curr, next, Ship.spawnAt(x, y, blockHeight)),
-    );
-    await this.players.set(
-      next,
-      new Player({
-        ...nextV,
-        prev: curr,
-      }),
-    );
-  }
-  @runtimeMethod()
-  private async removePlayer(curr: PublicKey) {
-    const currV = (await this.players.get(curr)).value;
-    const prev = currV.prev;
-    const next = currV.next;
-    const nextV = (await this.players.get(next)).value;
-    const prevV = (await this.players.get(prev)).value;
-    await this.players.set(
-      prev,
-      new Player({
-        ...prevV,
-        next: next,
-      }),
-    );
-    await this.players.set(curr, Player.empty());
-    await this.players.set(
-      next,
-      new Player({
-        ...nextV,
-        prev: prev,
-      }),
-    );
-  }
-  @runtimeMethod()
-  private async insertLoot(x: UInt64, y: UInt64) {
-    const curr = (await this.lootTop.get()).value;
-    await this.loots.set(
-      curr,
-      new Loot({
-        circle: new Circle({
-          x,
-          y,
-          r: UInt64.from(LOOT_SIZE),
-        }),
-      }),
-    );
-    await this.lootTop.set(curr.add(1));
-  }
-
-  @runtimeMethod()
   public async spawn() {
     const senderPubKey = this.transaction.sender.value;
     const s = this.seed([Field(-1)]);
     const player = (await this.players.get(senderPubKey)).value;
-    assert(player.sailing.not(), 'Player is must not be sailing');
+    assert(player.sailing.not(), 'Player must not be sailing');
     const [a, b, c, d] = this.getRandomsInRange(0, WORLD_SIZE, s);
-    this.insertPlayer(senderPubKey, a, b);
+
+    const insertPlayer = async (curr: PublicKey, x: UInt64, y: UInt64) => {
+      const blockHeight = new UInt64(this.network.block.height);
+      const head = PublicKey.empty();
+      const headV = (await this.players.get(PublicKey.empty())).value;
+      const next = headV.next;
+      const nextV = (await this.players.get(headV.next)).value;
+      //insert between head and next
+      await this.players.set(
+        curr,
+        new Player({
+          ...headV,
+          next: curr,
+        }),
+      );
+      await this.players.set(
+        curr,
+        Player.startSailing(curr, next, Ship.spawnAt(x, y, blockHeight)),
+      );
+      await this.players.set(
+        next,
+        new Player({
+          ...nextV,
+          prev: curr,
+        }),
+      );
+    };
+
+    const insertLoot = async (x: UInt64, y: UInt64) => {
+      const curr = (await this.lootTop.get()).value;
+      await this.loots.set(
+        curr,
+        new Loot({
+          circle: new Circle({
+            x,
+            y,
+            r: UInt64.from(LOOT_SIZE),
+          }),
+        }),
+      );
+      await this.lootTop.set(curr.add(1));
+    };
+
+    await insertPlayer(senderPubKey, a, b);
     for (let i = 0; i < 5; i++) {
       const s = this.seed([Field(i)]);
       const [a, b, c, d] = this.getRandomsInRange(0, WORLD_SIZE, s);
-      this.insertLoot(a, b);
-      this.insertLoot(c, d);
+      await insertLoot(a, b);
+      await insertLoot(c, d);
     }
   }
 
@@ -227,7 +204,31 @@ export class PiratesLogic extends RuntimeModule<PiratesLogicConfig> {
     const senderPubKey = this.transaction.sender.value;
     const player = (await this.players.get(senderPubKey)).value;
     assert(player.sailing, 'Player is not sailing');
-    this.removePlayer(senderPubKey);
+
+    const removePlayer = async (curr: PublicKey) => {
+      const currV = (await this.players.get(curr)).value;
+      const prev = currV.prev;
+      const next = currV.next;
+      const nextV = (await this.players.get(next)).value;
+      const prevV = (await this.players.get(prev)).value;
+      await this.players.set(
+        prev,
+        new Player({
+          ...prevV,
+          next: next,
+        }),
+      );
+      await this.players.set(curr, Player.empty());
+      await this.players.set(
+        next,
+        new Player({
+          ...nextV,
+          prev: prev,
+        }),
+      );
+    };
+
+    await removePlayer(senderPubKey);
   }
   @runtimeMethod()
   public async changeTurnRate(newTurnRate: UInt64): Promise<void> {

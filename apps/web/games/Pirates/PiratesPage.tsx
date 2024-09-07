@@ -19,12 +19,13 @@ import { ConnectWallet } from '@/components/framework/GameWidget/ui/popups/Conne
 import { InstallWallet } from '@/components/framework/GameWidget/ui/popups/InstallWallet';
 import { GameWrap } from '@/components/framework/GamePage/GameWrap';
 import { Game } from './lib/three/UI';
-import { PiratesClient } from './stores/PiratesClient';
+import { usePiratesClient } from './stores/PiratesClient';
 import { useNotificationStore } from '@/components/shared/Notification/lib/notificationStore';
 import { usePirates } from './stores/PiratesStore';
 
 export default function PiratesPage() {
   const pirates = usePirates();
+  const piratesClient = usePiratesClient();
   const networkStore = useNetworkStore();
   const notificationStore = useNotificationStore();
   const sessionKey = useSessionKeyStore();
@@ -100,7 +101,7 @@ export default function PiratesPage() {
         </span>
         {buttonComponent(
           'BUY SHIP',
-          () => PiratesClient.spawn(),
+          () => piratesClient.spawn(),
           'Game started',
           'Could not start game'
         )}
