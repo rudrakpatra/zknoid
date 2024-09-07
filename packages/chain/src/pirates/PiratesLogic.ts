@@ -140,11 +140,6 @@ export class PiratesLogic extends RuntimeModule<PiratesLogicConfig> {
   @state() public loots = StateMap.from<UInt64, Loot>(UInt64, Loot);
   @state() public lootTop = State.from<UInt64>(UInt64);
 
-  // const [a, b, c, d] = this.getRandomsInRange(
-  //   0,
-  //   WORLD_SIZE,
-  //   this.createSeed(curr),
-  // );
   private async insertPlayer(curr: PublicKey, x: UInt64, y: UInt64) {
     const blockHeight = new UInt64(this.network.block.height);
     const head = PublicKey.empty();
@@ -344,7 +339,7 @@ export class PiratesLogic extends RuntimeModule<PiratesLogicConfig> {
     assert(player.sailing, 'Player is not sailing');
 
     const { isSome: isSomeLoot, value: lootV } = await this.loots.get(loot);
-    assert(isSomeLoot, 'Loot does not exist');
+    // assert(isSomeLoot, 'Loot does not exist');
 
     assert(
       player.ship.hits(lootV.circle, blockHeight),

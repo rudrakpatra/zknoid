@@ -15,7 +15,7 @@ import {
 } from './Constants';
 import { formatUnits } from '@/lib/unit';
 import { Currency } from '@/constants/currency';
-import { useSessionKeyStore } from '@/lib/stores/sessionKeyStorage';
+import { usePirates } from '../../stores/PiratesStore';
 
 export const useGameStore = create<GameState>()(
   immer((set) => ({
@@ -60,6 +60,7 @@ export const Game: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameInstanceRef = useRef<GameInstance | null>(null);
   const notificationStore = useNotificationStore();
+  // const pirates = usePirates();
   const gameState = useGameStore();
   const { health, cannonballs, gold, offsetX, offsetY, turnRate, setTurnRate } =
     gameState;
@@ -134,10 +135,6 @@ export const Game: React.FC = () => {
   );
 
   const turnRateChoiceMenu = () => TURN_RATE_OPTIONS.map(turnRateChoice);
-
-  const sessionPrivateKey = useStore(useSessionKeyStore, (state) =>
-    state.getSessionKey()
-  );
 
   return (
     <div className="flex h-[90vh] flex-row gap-2">

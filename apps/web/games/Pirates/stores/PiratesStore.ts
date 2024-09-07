@@ -1,118 +1,187 @@
-import { create } from 'zustand';
-import { immer } from 'zustand/middleware/immer';
-import { persist } from 'zustand/middleware';
-import { PublicKey, Poseidon } from 'o1js';
 import {
   ComputedBlockJSON,
   useProtokitChainStore,
 } from '@/lib/stores/protokitChain';
-import { PiratesLogicProxy } from 'zknoid-chain-dev';
+import { useSessionKeyStore } from '@/lib/stores/sessionKeyStorage';
+import { UInt64 } from '@proto-kit/library';
 import { stringToField } from '@proto-kit/protocol';
-import { Draft } from 'immer';
-import { syncChainState } from './PiratesSync';
+import { Poseidon, PublicKey } from 'o1js';
+import { useEffect, useState } from 'react';
+import { client, Loot, Player } from 'zknoid-chain-dev';
+import { create } from 'zustand';
+import * as R from 'ramda';
 
-// const logUpdates = (...data: any[]) => data;
-const logUpdates = console.log;
-
-export function getMethodId(moduleName: string, methodName: string): string {
+function getMethodId(moduleName: string, methodName: string): string {
   return Poseidon.hash([stringToField(moduleName), stringToField(methodName)])
     .toBigInt()
     .toString();
 }
 
-// STATE HANDLERS
-
-export function onBlockUpdate(
-  game: PiratesLogicProxy | Draft<PiratesLogicProxy>,
-  block: ComputedBlockJSON
-) {
-  if (!block.txs) return;
-  for (const txData of block.txs) {
-    if (!txData.status) continue; // Skip failed transactions
-
-    const tx = txData.tx;
-    const sender = PublicKey.fromBase58(tx.sender);
-    switch (tx.methodId) {
-      case getMethodId('PiratesLogic', 'spawn'):
-        game.spawn(sender);
-        logUpdates('spawn');
-        break;
-      case getMethodId('PiratesLogic', 'leave'):
-        game.leave(sender);
-        logUpdates('leave');
-        break;
-      case getMethodId('PiratesLogic', 'changeTurnRate'):
-        const [newTurnRate] = tx.argsJSON.map((arg) => parseInt(arg));
-        game.changeTurnRate(sender, newTurnRate);
-        logUpdates('changeTurnRate');
-        break;
-      case getMethodId('PiratesLogic', 'shoot'):
-        const [offsetX, offsetY] = tx.argsJSON.map((arg) => parseInt(arg));
-        game.shoot(sender, offsetX, offsetY);
-        logUpdates('shoot');
-        break;
-      case getMethodId('PiratesLogic', 'hit'):
-        const [targetKey] = tx.argsJSON.map((arg) => PublicKey.fromBase58(arg));
-        game.hit(sender, targetKey);
-        logUpdates('hit');
-        break;
-      case getMethodId('PiratesLogic', 'pickupLoot'):
-        const [lootId] = tx.argsJSON.map((arg) => parseInt(arg));
-        game.pickupLoot(sender, lootId);
-        logUpdates('pickupLoot');
-        break;
-      default:
-        logUpdates('Unknown method:', tx.methodId);
-        break;
-    }
-  }
-  // Increment block height in the game
-  game.incrementBlockHeight();
+interface PirateState {
+  players: Map<string, Player>;
+  loots: Map<string, Loot>;
+  lootTop: UInt64;
+  onNewBlock: (block: ComputedBlockJSON) => void;
+  syncPlayers: () => Promise<void>;
+  syncLoots: () => Promise<void>;
 }
 
-interface PiratesState {
-  game: PiratesLogicProxy;
-  updateBlock: (block: ComputedBlockJSON) => void;
-}
-
-export const usePiratesStore = create<PiratesState>()(
-  persist(
-    immer((set) => ({
-      game: new PiratesLogicProxy(),
-      updateBlock: (block: ComputedBlockJSON) =>
-        set((state) => {
-          onBlockUpdate(state.game, block);
-        }),
-      syncChainState: (pubKey: PublicKey) => {
-        set((state) => {
-          state.game = new PiratesLogicProxy();
-          syncChainState(state.game, pubKey);
-        });
-      },
-    })),
-    {
-      name: 'pirates-storage',
-      serialize: (state) => JSON.stringify(state),
-      deserialize: (str) => {
-        const parsed = JSON.parse(str);
-        return {
-          ...parsed,
-          game: Object.assign(new PiratesLogicProxy(), parsed.game),
-        };
-      },
+const usePirateStore = create<PirateState>((set, get) => ({
+  players: new Map<string, Player>(),
+  loots: new Map<string, Loot>(),
+  lootTop: UInt64.from(0),
+  onNewBlock: async (block: ComputedBlockJSON) => {
+    if (!block.txs) return;
+    for (const txData of block.txs) {
+      if (!txData.status) continue; // Skip failed transactions
+      const tx = txData.tx;
+      const sender = PublicKey.fromBase58(tx.sender);
+      switch (tx.methodId) {
+        case getMethodId('PiratesLogic', 'spawn'):
+          const { value: player } = await client.runtime
+            .resolve('PiratesLogic')
+            .players.get(sender);
+          set(
+            R.over(R.lensProp('players'), (players: Map<string, Player>) =>
+              new Map(players).set(sender.toBase58(), player)
+            )
+          );
+          await get().syncLoots();
+          break;
+        case getMethodId('PiratesLogic', 'leave'):
+          set(
+            R.over(R.lensProp('players'), (players: Map<string, Player>) => {
+              const newPlayers = new Map(players);
+              newPlayers.delete(sender.toBase58());
+              return newPlayers;
+            })
+          );
+          break;
+        case getMethodId('PiratesLogic', 'changeTurnRate'):
+          const [newTurnRate] = tx.argsJSON.map((arg) => parseInt(arg));
+          set(
+            R.over(
+              R.lensPath(['players', sender.toBase58()]),
+              R.assoc('turnRate', newTurnRate)
+            )
+          );
+          break;
+        case getMethodId('PiratesLogic', 'shoot'):
+          const [offsetX, offsetY] = tx.argsJSON.map((arg) => parseInt(arg));
+          set(
+            R.over(
+              R.lensPath(['players', sender.toBase58()]),
+              R.assoc('lastShot', { x: offsetX, y: offsetY })
+            )
+          );
+          break;
+        case getMethodId('PiratesLogic', 'hit'):
+          const [keyA, keyB] = tx.argsJSON.map((arg) =>
+            PublicKey.fromBase58(arg)
+          );
+          set(
+            R.pipe(
+              R.over(
+                R.lensPath(['players', keyA.toBase58(), 'health']),
+                (health: UInt64) => health.sub(1)
+              ),
+              R.over(
+                R.lensPath(['players', keyB.toBase58(), 'health']),
+                (health: UInt64) => health.sub(1)
+              )
+            )
+          );
+          break;
+        case getMethodId('PiratesLogic', 'pickupLoot'):
+          const [lootId] = tx.argsJSON.map((arg) => UInt64.from(arg));
+          const { value: updatedPlayer } = await client.runtime
+            .resolve('PiratesLogic')
+            .players.get(sender);
+          const { value: updatedLoot } = await client.runtime
+            .resolve('PiratesLogic')
+            .loots.get(lootId);
+          set(
+            R.pipe(
+              R.assocPath(['players', sender.toBase58()], updatedPlayer),
+              R.assocPath(['loots', lootId.toString()], updatedLoot)
+            )
+          );
+          break;
+        default:
+          throw Error('Unknown method: ' + tx.methodId);
+      }
     }
-  )
-);
+  },
+  syncPlayers: async () => {
+    const pubKey = useSessionKeyStore.getState().getSessionKey().toPublicKey();
+    let currentKey = pubKey;
+    const newPlayers = new Map();
+
+    const addPlayer = async (key: PublicKey) => {
+      const { isSome, value: player } = await client.runtime
+        .resolve('PiratesLogic')
+        .players.get(key);
+      if (isSome.not().toBoolean()) return false;
+      newPlayers.set(key.toBase58(), player);
+      return true;
+    };
+
+    while (await addPlayer(currentKey)) {
+      if (currentKey.equals(PublicKey.empty())) break;
+      currentKey = newPlayers.get(currentKey.toBase58())!.next;
+    }
+
+    currentKey = pubKey;
+    while (await addPlayer(currentKey)) {
+      if (currentKey.equals(PublicKey.empty())) break;
+      currentKey = newPlayers.get(currentKey.toBase58())!.prev;
+    }
+
+    set(R.assoc('players', newPlayers));
+  },
+  syncLoots: async () => {
+    let currentLootKey = UInt64.from(0);
+    const newLoots = new Map();
+    while (true) {
+      const { isSome, value: loot } = await client.runtime
+        .resolve('PiratesLogic')
+        .loots.get(currentLootKey);
+      if (isSome.not().toBoolean()) break;
+      newLoots.set(currentLootKey.toString(), loot);
+      currentLootKey = currentLootKey.add(1);
+    }
+    set(
+      R.pipe(
+        R.assoc('loots', newLoots),
+        R.assoc('lootTop', currentLootKey.sub(1))
+      )
+    );
+  },
+}));
 
 export const usePirates = () => {
-  const { game, updateBlock } = usePiratesStore();
+  const [blockHeight, setBlockHeight] = useState(0);
   const protokitChain = useProtokitChainStore();
-  const height = protokitChain.block?.height ?? NaN;
-  const block = protokitChain.block;
+  const sessionKey = useSessionKeyStore();
+  const pirateStore = usePirateStore();
 
-  if (game.getBlockHeight() < height && block) {
-    updateBlock(block);
-  }
+  useEffect(() => {
+    pirateStore.syncLoots();
+  }, []);
 
-  return game;
+  useEffect(() => {
+    pirateStore.syncPlayers();
+  }, [sessionKey]);
+
+  useEffect(() => {
+    if (protokitChain.loading || !protokitChain.block) return;
+    const block = protokitChain.block;
+    const height = block.height;
+    if (height > blockHeight) {
+      setBlockHeight(height);
+      pirateStore.onNewBlock(block);
+    }
+  }, [protokitChain, blockHeight]);
+
+  return pirateStore;
 };

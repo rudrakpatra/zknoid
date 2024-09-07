@@ -1,15 +1,16 @@
-import { PrivateKey, PublicKey } from 'o1js';
+import { PublicKey } from 'o1js';
 import { UInt64 } from '@proto-kit/library';
 import { client, PiratesLogic } from 'zknoid-chain-dev';
+import { useSessionKeyStore } from '@/lib/stores/sessionKeyStorage';
 
 // const logTxns = (...data: any[]) => data;
 const logTxns = console.log;
 
 // Helper function to create and send a transaction
 async function createAndSendTransaction(
-  sessionPrivateKey: PrivateKey,
   action: (piratesLogic: PiratesLogic) => void
 ) {
+  const sessionPrivateKey = useSessionKeyStore().getSessionKey();
   const piratesLogic = client.runtime.resolve('PiratesLogic') as PiratesLogic;
 
   const tx = await client.transaction(
@@ -26,50 +27,39 @@ async function createAndSendTransaction(
   logTxns('Tx sent', tx);
 }
 
-export const Txns = {
-  spawn: async (sessionPrivateKey: PrivateKey) => {
-    await createAndSendTransaction(sessionPrivateKey, (piratesLogic) => {
+export const PiratesClient = {
+  spawn: async () => {
+    await createAndSendTransaction((piratesLogic) => {
       piratesLogic.spawn();
     });
   },
 
-  leave: async (sessionPrivateKey: PrivateKey) => {
-    await createAndSendTransaction(sessionPrivateKey, (piratesLogic) => {
+  leave: async () => {
+    await createAndSendTransaction((piratesLogic) => {
       piratesLogic.leave();
     });
   },
 
-  changeTurnRate: async (
-    sessionPrivateKey: PrivateKey,
-    newTurnRate: number
-  ) => {
-    await createAndSendTransaction(sessionPrivateKey, (piratesLogic) => {
+  changeTurnRate: async (newTurnRate: number) => {
+    await createAndSendTransaction((piratesLogic) => {
       piratesLogic.changeTurnRate(UInt64.from(newTurnRate));
     });
   },
 
-  shoot: async (
-    sessionPrivateKey: PrivateKey,
-    offsetX: number,
-    offsetY: number
-  ) => {
-    await createAndSendTransaction(sessionPrivateKey, (piratesLogic) => {
+  shoot: async (offsetX: number, offsetY: number) => {
+    await createAndSendTransaction((piratesLogic) => {
       piratesLogic.shoot(UInt64.from(offsetX), UInt64.from(offsetY));
     });
   },
 
-  hit: async (
-    sessionPrivateKey: PrivateKey,
-    playerA: PublicKey,
-    playerB: PublicKey
-  ) => {
-    await createAndSendTransaction(sessionPrivateKey, (piratesLogic) => {
+  hit: async (playerA: PublicKey, playerB: PublicKey) => {
+    await createAndSendTransaction((piratesLogic) => {
       piratesLogic.hit(playerA, playerB);
     });
   },
 
-  pickupLoot: async (sessionPrivateKey: PrivateKey, lootId: number) => {
-    await createAndSendTransaction(sessionPrivateKey, (piratesLogic) => {
+  pickupLoot: async (lootId: number) => {
+    await createAndSendTransaction((piratesLogic) => {
       piratesLogic.pickupLoot(UInt64.from(lootId));
     });
   },
