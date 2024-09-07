@@ -140,6 +140,7 @@ export class PiratesLogic extends RuntimeModule<PiratesLogicConfig> {
   @state() public loots = StateMap.from<UInt64, Loot>(UInt64, Loot);
   @state() public lootTop = State.from<UInt64>(UInt64);
 
+  @runtimeMethod()
   private async insertPlayer(curr: PublicKey, x: UInt64, y: UInt64) {
     const blockHeight = new UInt64(this.network.block.height);
     const head = PublicKey.empty();
@@ -166,6 +167,7 @@ export class PiratesLogic extends RuntimeModule<PiratesLogicConfig> {
       }),
     );
   }
+  @runtimeMethod()
   private async removePlayer(curr: PublicKey) {
     const currV = (await this.players.get(curr)).value;
     const prev = currV.prev;
@@ -188,6 +190,7 @@ export class PiratesLogic extends RuntimeModule<PiratesLogicConfig> {
       }),
     );
   }
+  @runtimeMethod()
   private async insertLoot(x: UInt64, y: UInt64) {
     const curr = (await this.lootTop.get()).value;
     await this.loots.set(
@@ -206,13 +209,13 @@ export class PiratesLogic extends RuntimeModule<PiratesLogicConfig> {
   @runtimeMethod()
   public async spawn() {
     const senderPubKey = this.transaction.sender.value;
-    const s = this.seed([Field('player')]);
+    const s = this.seed([Field(-1)]);
     const player = (await this.players.get(senderPubKey)).value;
     assert(player.sailing.not(), 'Player is must not be sailing');
     const [a, b, c, d] = this.getRandomsInRange(0, WORLD_SIZE, s);
     this.insertPlayer(senderPubKey, a, b);
     for (let i = 0; i < 5; i++) {
-      const s = this.seed([Field('loot#' + i)]);
+      const s = this.seed([Field(i)]);
       const [a, b, c, d] = this.getRandomsInRange(0, WORLD_SIZE, s);
       this.insertLoot(a, b);
       this.insertLoot(c, d);
@@ -350,7 +353,7 @@ export class PiratesLogic extends RuntimeModule<PiratesLogicConfig> {
     const reward = this.getRandomInRange(MIN_LOOT, MAX_LOOT);
     player.gold = player.gold.add(reward);
     await this.players.set(senderPubKey, player);
-    const s = this.seed([Field('pickupLoot')]);
+    const s = this.seed([Field(2)]);
     const [a, b, c, d] = this.getRandomsInRange(0, WORLD_SIZE, s);
     await this.loots.set(
       loot,
