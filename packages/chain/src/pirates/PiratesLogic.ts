@@ -143,9 +143,9 @@ export class PiratesLogic extends RuntimeModule<PiratesLogicConfig> {
   @runtimeMethod()
   public async spawn() {
     const senderPubKey = this.transaction.sender.value;
-    const s = this.seed([Field(-1)]);
     const player = (await this.players.get(senderPubKey)).value;
     assert(player.sailing.not(), 'Player must not be sailing');
+    const s = this.seed([Field(-1)]);
     const [a, b, c, d] = this.getRandomsInRange(0, WORLD_SIZE, s);
 
     const insertPlayer = async (curr: PublicKey, x: UInt64, y: UInt64) => {
@@ -156,7 +156,7 @@ export class PiratesLogic extends RuntimeModule<PiratesLogicConfig> {
       const nextV = (await this.players.get(headV.next)).value;
       //insert between head and next
       await this.players.set(
-        curr,
+        head,
         new Player({
           ...headV,
           next: curr,
@@ -164,7 +164,7 @@ export class PiratesLogic extends RuntimeModule<PiratesLogicConfig> {
       );
       await this.players.set(
         curr,
-        Player.startSailing(curr, next, Ship.spawnAt(x, y, blockHeight)),
+        Player.startSailing(next, head, Ship.spawnAt(x, y, blockHeight)),
       );
       await this.players.set(
         next,

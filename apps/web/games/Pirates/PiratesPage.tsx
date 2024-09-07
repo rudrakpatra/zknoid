@@ -21,16 +21,27 @@ import { GameWrap } from '@/components/framework/GamePage/GameWrap';
 import { Game } from './lib/three/UI';
 import { usePiratesClient } from './stores/PiratesClient';
 import { useNotificationStore } from '@/components/shared/Notification/lib/notificationStore';
-import { usePirates } from './stores/PiratesStore';
+import {
+  stringifyFull,
+  useObservePiratesState,
+  usePiratesStore,
+} from './stores/PiratesStore';
 
 export default function PiratesPage() {
-  const pirates = usePirates();
+  const { client } = useContext(ZkNoidGameContext);
+
+  if (!client) {
+    throw Error('Context app chain client is not set');
+  }
+
+  useObservePiratesState();
+  const pirates = usePiratesStore();
   const piratesClient = usePiratesClient();
   const networkStore = useNetworkStore();
   const notificationStore = useNotificationStore();
   const sessionKey = useSessionKeyStore();
   const sessionPrivateKey = sessionKey.getSessionKey();
-
+  console.log('PLAYERS\n', pirates);
   const readyToPlay =
     networkStore.address &&
     walletInstalled() &&

@@ -5,11 +5,20 @@ import {
 import { useSessionKeyStore } from '@/lib/stores/sessionKeyStorage';
 import { UInt64 } from '@proto-kit/library';
 import { stringToField } from '@proto-kit/protocol';
-import { Poseidon, PublicKey } from 'o1js';
-import { useEffect, useState } from 'react';
-import { client, Loot, Player } from 'zknoid-chain-dev';
+import { Bool, Field, Group, Int64, Poseidon, PublicKey, Scalar } from 'o1js';
+import { useContext, useEffect, useState } from 'react';
+import {
+  client,
+  ClientAppChain,
+  Loot,
+  PiratesLogic,
+  Player,
+} from 'zknoid-chain-dev';
 import { create } from 'zustand';
 import * as R from 'ramda';
+import { useNetworkStore } from '@/lib/stores/network';
+import ZkNoidGameContext from '@/lib/contexts/ZkNoidGameContext';
+import { piratesConfig } from '../config';
 
 function getMethodId(moduleName: string, methodName: string): string {
   return Poseidon.hash([stringToField(moduleName), stringToField(methodName)])
@@ -17,20 +26,28 @@ function getMethodId(moduleName: string, methodName: string): string {
     .toString();
 }
 
+type PiratesClient = ClientAppChain<
+  typeof piratesConfig.runtimeModules,
+  any,
+  any,
+  any
+>;
 interface PirateState {
+  isPLaying: boolean;
   players: Map<string, Player>;
   loots: Map<string, Loot>;
   lootTop: UInt64;
-  onNewBlock: (block: ComputedBlockJSON) => void;
-  syncPlayers: () => Promise<void>;
-  syncLoots: () => Promise<void>;
+  onNewBlock: (client: PiratesClient, block: ComputedBlockJSON) => void;
+  syncPlayers: (client: PiratesClient) => Promise<void>;
+  syncLoots: (client: PiratesClient) => Promise<void>;
 }
 
-const usePirateStore = create<PirateState>((set, get) => ({
+export const usePiratesStore = create<PirateState>((set, get) => ({
+  isPLaying: false,
   players: new Map<string, Player>(),
   loots: new Map<string, Loot>(),
   lootTop: UInt64.from(0),
-  onNewBlock: async (block: ComputedBlockJSON) => {
+  onNewBlock: async (client: PiratesClient, block: ComputedBlockJSON) => {
     if (!block.txs) return;
     for (const txData of block.txs) {
       if (!txData.status) continue; // Skip failed transactions
@@ -38,17 +55,19 @@ const usePirateStore = create<PirateState>((set, get) => ({
       const sender = PublicKey.fromBase58(tx.sender);
       switch (tx.methodId) {
         case getMethodId('PiratesLogic', 'spawn'):
-          const { value: player } = await client.runtime
-            .resolve('PiratesLogic')
-            .players.get(sender);
-          set(
-            R.over(R.lensProp('players'), (players: Map<string, Player>) =>
-              new Map(players).set(sender.toBase58(), player)
-            )
-          );
-          await get().syncLoots();
+          console.log('spawn', sender.toBase58());
+          const player =
+            await client.query.runtime.PiratesLogic.players.get(sender);
+          if (player)
+            set(
+              R.over(R.lensProp('players'), (players: Map<string, Player>) =>
+                new Map(players).set(sender.toBase58(), player)
+              )
+            );
+          await get().syncLoots(client);
           break;
         case getMethodId('PiratesLogic', 'leave'):
+          console.log('leave', sender.toBase58());
           set(
             R.over(R.lensProp('players'), (players: Map<string, Player>) => {
               const newPlayers = new Map(players);
@@ -58,6 +77,7 @@ const usePirateStore = create<PirateState>((set, get) => ({
           );
           break;
         case getMethodId('PiratesLogic', 'changeTurnRate'):
+          console.log('changeTurnRate', sender.toBase58());
           const [newTurnRate] = tx.argsJSON.map((arg) => parseInt(arg));
           set(
             R.over(
@@ -67,6 +87,7 @@ const usePirateStore = create<PirateState>((set, get) => ({
           );
           break;
         case getMethodId('PiratesLogic', 'shoot'):
+          console.log('shoot', sender.toBase58());
           const [offsetX, offsetY] = tx.argsJSON.map((arg) => parseInt(arg));
           set(
             R.over(
@@ -79,6 +100,7 @@ const usePirateStore = create<PirateState>((set, get) => ({
           const [keyA, keyB] = tx.argsJSON.map((arg) =>
             PublicKey.fromBase58(arg)
           );
+          console.log('hit', keyA.toBase58(), keyB.toBase58());
           set(
             R.pipe(
               R.over(
@@ -93,13 +115,12 @@ const usePirateStore = create<PirateState>((set, get) => ({
           );
           break;
         case getMethodId('PiratesLogic', 'pickupLoot'):
+          console.log('pickupLoot', sender.toBase58());
           const [lootId] = tx.argsJSON.map((arg) => UInt64.from(arg));
-          const { value: updatedPlayer } = await client.runtime
-            .resolve('PiratesLogic')
-            .players.get(sender);
-          const { value: updatedLoot } = await client.runtime
-            .resolve('PiratesLogic')
-            .loots.get(lootId);
+          const updatedPlayer =
+            await client.query.runtime.PiratesLogic.players.get(sender);
+          const updatedLoot =
+            await client.query.runtime.PiratesLogic.loots.get(lootId);
           set(
             R.pipe(
               R.assocPath(['players', sender.toBase58()], updatedPlayer),
@@ -112,18 +133,18 @@ const usePirateStore = create<PirateState>((set, get) => ({
       }
     }
   },
-  syncPlayers: async () => {
+  syncPlayers: async (client: PiratesClient) => {
+    console.log('syncPlayers');
     const pubKey = useSessionKeyStore.getState().getSessionKey().toPublicKey();
     let currentKey = pubKey;
     const newPlayers = new Map();
 
     const addPlayer = async (key: PublicKey) => {
-      const { isSome, value: player } = await client.runtime
-        .resolve('PiratesLogic')
-        .players.get(key);
-      if (isSome.not().toBoolean()) return false;
+      const player = await client.query.runtime.PiratesLogic.players.get(key);
+      if (!player) return false;
       newPlayers.set(key.toBase58(), player);
-      console.log('Pirates:', key.toBase58(), player);
+      console.log('addPlayer:', key.toBase58(), player);
+      if (key.equals(pubKey)) set(R.assoc('isPLaying', true));
       return true;
     };
 
@@ -140,50 +161,111 @@ const usePirateStore = create<PirateState>((set, get) => ({
 
     set(R.assoc('players', newPlayers));
   },
-  syncLoots: async () => {
-    let currentLootKey = UInt64.from(0);
-    const newLoots = new Map();
-    while (true) {
-      const { isSome, value: loot } = await client.runtime
-        .resolve('PiratesLogic')
-        .loots.get(currentLootKey);
-      if (isSome.not().toBoolean()) break;
-      console.log('Pirates:', currentLootKey, loot);
+  syncLoots: async (client: PiratesClient) => {
+    console.log('syncLoots');
+    let currentLootKey = get().lootTop;
+    const newLoots = get().loots;
+    const addLoot = async (key: UInt64) => {
+      const loot = await client.query.runtime.PiratesLogic.loots.get(key);
+      if (!loot) return false;
+      console.log('addLoot:', currentLootKey, loot);
       newLoots.set(currentLootKey.toString(), loot);
+      return true;
+    };
+    while (await addLoot(currentLootKey)) {
+      if (currentLootKey.equals(UInt64.from(0))) break;
       currentLootKey = currentLootKey.add(1);
     }
-    set(
-      R.pipe(
-        R.assoc('loots', newLoots),
-        R.assoc('lootTop', currentLootKey.sub(1))
-      )
-    );
+    set(R.pipe(R.assoc('loots', newLoots), R.assoc('lootTop', currentLootKey)));
   },
 }));
 
-export const usePirates = () => {
-  const [blockHeight, setBlockHeight] = useState(0);
-  const protokitChain = useProtokitChainStore();
+export const useObservePiratesState = () => {
+  const chain = useProtokitChainStore();
+  const network = useNetworkStore();
+  const { client } = useContext(ZkNoidGameContext);
   const sessionKey = useSessionKeyStore();
-  const pirateStore = usePirateStore();
+  const pirateStore = usePiratesStore();
+  const [blockHeight, setBlockHeight] = useState(0);
+  const [newBlock, setNewBlock] = useState<ComputedBlockJSON | null>(null);
+  useEffect(() => {
+    if (!network.protokitClientStarted) return;
+    if (!network.walletConnected) return;
+    if (!network.address) return;
+    pirateStore.syncLoots(client as PiratesClient);
+  }, [network.protokitClientStarted, network.walletConnected, network.address]);
 
   useEffect(() => {
-    pirateStore.syncLoots();
-  }, []);
+    if (!network.protokitClientStarted) return;
+    if (!network.walletConnected) return;
+    if (!network.address) return;
+    pirateStore.syncPlayers(client as PiratesClient);
+  }, [
+    network.protokitClientStarted,
+    network.walletConnected,
+    network.address,
+    sessionKey,
+  ]);
 
   useEffect(() => {
-    pirateStore.syncPlayers();
-  }, [sessionKey]);
-
-  useEffect(() => {
-    if (protokitChain.loading || !protokitChain.block) return;
-    const block = protokitChain.block;
-    const height = block.height;
+    if (!network.protokitClientStarted) return;
+    if (!network.walletConnected) return;
+    if (!network.address) return;
+    if (chain.loading) return;
+    if (!chain.block) return;
+    const height = chain.block.height;
+    const block = chain.block;
     if (height > blockHeight) {
       setBlockHeight(height);
-      pirateStore.onNewBlock(block);
+      setNewBlock(block);
     }
-  }, [protokitChain, blockHeight]);
+  }, [
+    network.protokitClientStarted,
+    network.walletConnected,
+    network.address,
+    chain.block?.height,
+  ]);
 
-  return pirateStore;
+  useEffect(() => {
+    if (!newBlock) return;
+    pirateStore.onNewBlock(client as PiratesClient, newBlock);
+  }, [newBlock]);
 };
+
+export function stringifyFull(obj: any): string {
+  const seen = new WeakSet();
+  return JSON.stringify(
+    obj,
+    (key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (seen.has(value)) return '[Circular]';
+        seen.add(value);
+        if (value instanceof Map) {
+          return Object.fromEntries(value);
+        }
+        if (value instanceof Set) {
+          return Array.from(value);
+        }
+        if (value.constructor !== Object) {
+          return Object.fromEntries(Object.entries(value));
+        }
+      }
+      if (
+        value instanceof UInt64 ||
+        value instanceof Int64 ||
+        value instanceof Field ||
+        value instanceof Scalar
+      ) {
+        return value.toString();
+      }
+      if (value instanceof Bool) {
+        return value.toBoolean();
+      }
+      if (value instanceof Group || value instanceof PublicKey) {
+        return value.toJSON();
+      }
+      return value;
+    },
+    2
+  );
+}

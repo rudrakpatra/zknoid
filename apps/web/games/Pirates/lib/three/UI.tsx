@@ -15,7 +15,7 @@ import {
 } from './Constants';
 import { formatUnits } from '@/lib/unit';
 import { Currency } from '@/constants/currency';
-import { usePirates } from '../../stores/PiratesStore';
+import { usePiratesStore } from '../../stores/PiratesStore';
 
 export const useGameStore = create<GameState>()(
   immer((set) => ({
@@ -60,7 +60,7 @@ export const Game: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameInstanceRef = useRef<GameInstance | null>(null);
   const notificationStore = useNotificationStore();
-  // const pirates = usePirates();
+  // const pirates = usePiratesStore();
   const gameState = useGameStore();
   const { health, cannonballs, gold, offsetX, offsetY, turnRate, setTurnRate } =
     gameState;
