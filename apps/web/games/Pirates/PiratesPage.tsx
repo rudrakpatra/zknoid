@@ -18,14 +18,10 @@ import { walletInstalled } from '@/lib/helpers';
 import { ConnectWallet } from '@/components/framework/GameWidget/ui/popups/ConnectWallet';
 import { InstallWallet } from '@/components/framework/GameWidget/ui/popups/InstallWallet';
 import { GameWrap } from '@/components/framework/GamePage/GameWrap';
-import { Game } from './lib/three/UI';
+import { Game } from './PiratesGame';
 import { usePiratesClient } from './stores/PiratesClient';
 import { useNotificationStore } from '@/components/shared/Notification/lib/notificationStore';
-import {
-  stringifyFull,
-  useObservePiratesState,
-  usePiratesStore,
-} from './stores/PiratesStore';
+import { useObservePiratesState, usePiratesStore } from './stores/PiratesStore';
 
 export default function PiratesPage() {
   const { client } = useContext(ZkNoidGameContext);
@@ -33,7 +29,6 @@ export default function PiratesPage() {
   if (!client) {
     throw Error('Context app chain client is not set');
   }
-
   useObservePiratesState();
   const pirates = usePiratesStore();
   const piratesClient = usePiratesClient();
@@ -41,11 +36,6 @@ export default function PiratesPage() {
   const notificationStore = useNotificationStore();
   const sessionKey = useSessionKeyStore();
   const sessionPrivateKey = sessionKey.getSessionKey();
-  console.log('PLAYERS\n', pirates);
-  const readyToPlay =
-    networkStore.address &&
-    walletInstalled() &&
-    pirates.players.has(sessionPrivateKey.toPublicKey().toBase58());
 
   const buttonComponent = (
     label: string,
@@ -97,31 +87,38 @@ export default function PiratesPage() {
     return installWalletBtn();
   };
 
-  const showSpawnShipOptions = () => {
-    if (!networkStore.address) return null;
-    if (pirates.players.has(sessionPrivateKey.toPublicKey().toBase58()))
-      return null;
+  const showGame = () => {
+    const showMenu = () => {
+      if (!networkStore.address) return null;
+      if (!pirates) return null;
+      if (!pirates.players) return null;
+      if (pirates.players[sessionPrivateKey.toPublicKey().toBase58()])
+        return null;
+      return (
+        <>
+          <span className={'text-center text-headline-1 text-left-accent'}>
+            you must buy a ship to start the game
+          </span>
+          {buttonComponent(
+            'BUY SHIP',
+            () => piratesClient.spawn(),
+            'Game started',
+            'Could not start game'
+          )}
+        </>
+      );
+    };
     return (
       <div
+        id="gameContainer"
         className={
-          'grid h-[80vh] place-content-center gap-4 rounded-lg bg-zinc-900'
+          'relative grid h-[80vh] place-content-center gap-4 rounded-lg border border-zinc-600 bg-zinc-800'
         }
       >
-        <span className={'text-center text-headline-1 text-left-accent'}>
-          you must buy a ship to start the game
-        </span>
-        {buttonComponent(
-          'BUY SHIP',
-          () => piratesClient.spawn(),
-          'Game started',
-          'Could not start game'
-        )}
+        {showMenu()}
+        <Game />
       </div>
     );
-  };
-  const showGame = () => {
-    if (readyToPlay) return <Game />;
-    return null;
   };
   return (
     <GamePage
@@ -139,11 +136,10 @@ export default function PiratesPage() {
       <GameWidget
         author={piratesConfig.author}
         isPvp
-        playersCount={5}
+        playersCount={Object.keys(pirates.players).length}
         gameId="pirates"
       >
         {showGame()}
-        {showSpawnShipOptions()}
         {showWalletOptions()}
       </GameWidget>
     </GamePage>

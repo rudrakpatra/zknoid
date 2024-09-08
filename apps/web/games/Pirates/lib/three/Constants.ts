@@ -1,16 +1,12 @@
 import { Vector3 } from 'three';
 import { Size2 } from './Utils';
+export { PiratesConstants } from 'zknoid-chain-dev';
 
 export const INITIAL_HEALTH = 10;
-export const INITIAL_CANNONBALLS = 10;
-export const INITIAL_GOLD = 0;
 export const INITIAL_TURN_RATE = 0;
-export const MAX_TURN_RATE = 180;
 export const SHIP_RANGE = 40;
-export const SHIP_SIZE=20;
-export const TURN_RATE_OPTIONS = [-30, -20, -10, 0, 10, 20, 30];
-export const CANVAS_SIZE = new Size2(1000, 1000);
-export const CAMERA_OFFSET = new Vector3(0, 60, 60);
+export const TURN_RATE_OPTIONS = [0, 5, 10, 15, 20, 25, 30];
+//   PiratesConstants.WORLD_SIZE / 10 ** PiratesConstants.DECIMALS;
+export const ACTUAL_WORLD_SIZE = new Size2(1e3, 1e3);
+export const CAMERA_OFFSET = new Vector3(0, 60, 40);
 export const CAMERA_LOOK_AT_OFFSET = new Vector3(0, 0, 0);
-export const MAX_SIMULATE_TIME = 1000; // 1 second in milliseconds
-export const CANNON_WAIT_TIME = 3000; // 3 seconds in milliseconds

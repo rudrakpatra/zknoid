@@ -406,6 +406,9 @@ export function getCurrentPosition(
   x: UInt64;
   y: UInt64;
 } {
+  const turnRate_Adjusted = new UInt64(
+    Provable.if(turnRate.equals(UInt64.zero), UInt64, UInt64.from(1), turnRate),
+  );
   // dx = v( cos(wt-p)-cos(p) ) / w
   const dx = Provable.if(
     turnRate.equals(UInt64.zero),
@@ -417,7 +420,7 @@ export function getCurrentPosition(
     cos(turnRate.mul(timePassed).add(UInt64.from(QUANISATION_LEVEL).sub(phase)))
       .sub(cos(phase))
       .mul(Int64.from(UInt64.from(SHIP_SPEED).mul(timePassed).toO1UInt64()))
-      .div(turnRate.toO1UInt64()),
+      .div(turnRate_Adjusted.toO1UInt64()),
   );
   // dy = v( sin(wt - p + pi) - sin(p) ) / w
   const y = Provable.if(
@@ -434,7 +437,7 @@ export function getCurrentPosition(
     )
       .sub(sin(phase))
       .mul(Int64.from(UInt64.from(SHIP_SPEED).mul(timePassed).toO1UInt64()))
-      .div(turnRate.toO1UInt64()),
+      .div(turnRate_Adjusted.toO1UInt64()),
   );
 
   // assuming x+dx, y+dy is positive, TODO do wrap arounds??

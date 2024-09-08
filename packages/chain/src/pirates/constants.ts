@@ -1,12 +1,11 @@
 export const DECIMALS = 5; // for world coordinates
-export const WORLD_SIZE = 1e5 * 10 ** DECIMALS;
+export const WORLD_SIZE = 1e3 * 10 ** DECIMALS;
 export const INITIAL_SHIP_HEALTH = 10;
 export const SHIP_SIZE = 10 * 10 ** DECIMALS;
 export const SHIP_SPEED = 30 * 10 ** DECIMALS;
 // direction
 export const QUANISATION_LEVEL = 72; // 1 quantum = 5 degree
 export const MAX_TURN_RATE = 6; // in quanta per second, +- 30 degrees
-export const TURN_RATE_ = 5;
 
 export const INITIAL_GOLD = 0;
 export const INITIAL_CANNONBALLS = 10;

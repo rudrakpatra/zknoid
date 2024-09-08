@@ -1,2 +1,3 @@
 export { PiratesLogic, Player, Loot } from './PiratesLogic.js';
-export * from './constants.js';
+export * as PiratesProxy from './PiratesProxy.js';
+export * as PiratesConstants from './constants.js';
