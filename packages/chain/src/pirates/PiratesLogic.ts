@@ -69,7 +69,7 @@ export class Ship extends Struct({
     return new Ship({
       health: UInt64.from(INITIAL_SHIP_HEALTH),
       circle: new Circle({ x, y, r: UInt64.from(SHIP_SIZE) }),
-      turnRate: UInt64.from(MAX_TURN_RATE),
+      turnRate: UInt64.from(0),
       phase: UInt64.from(0),
       lastUpdatedAt: time,
     });

@@ -91,7 +91,7 @@ export const load = async () => {
     new MeshStandardMaterial({ color: 0xae8321 })
   );
   loot.name = 'loot';
-  loot.userData.type = 'ship';
+  loot.userData.type = 'loot';
   const cannonball = new Mesh(
     new SphereGeometry(1, 10, 4),
     new MeshStandardMaterial({ color: 0x222222 })

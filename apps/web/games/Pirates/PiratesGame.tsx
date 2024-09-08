@@ -8,7 +8,7 @@ import {
 import { usePiratesStore } from './stores/PiratesStore';
 import { usePiratesClient } from './stores/PiratesClient';
 import { useSessionKeyStore } from '@/lib/stores/sessionKeyStorage';
-import { PiratesProxy } from 'zknoid-chain-dev';
+import { PiratesConstants, PiratesProxy } from 'zknoid-chain-dev';
 import { useNetworkStore } from '@/lib/stores/network';
 import { useProtokitChainStore } from '@/lib/stores/protokitChain';
 import { formatPubkey } from '@/lib/utils';
@@ -76,7 +76,7 @@ export const Game: React.FC = () => {
         setTurnRate(player.ship.turnRate);
         notificationStore.create({
           type: 'success',
-          message: `Your turn rate has been changed to ${player.ship.turnRate}`,
+          message: `Your turn rate has been changed to ${(player.ship.turnRate * 360) / PiratesConstants.QUANISATION_LEVEL}`,
         });
       }
     }
@@ -88,8 +88,8 @@ export const Game: React.FC = () => {
   const turnRateChoice = (t: number) => (
     <button
       key={t}
-      className={`w-[50px] rounded-xl ${turnrate === t ? 'bg-left-accent' : ' bg-zinc-400'} p-2 text-black`}
-      onClick={() => piratesClient.changeTurnRate(t)}
+      className={`w-[50px] rounded-xl ${turnrate === t / 5 ? 'bg-left-accent' : ' bg-zinc-400'} p-2 text-black`}
+      onClick={() => piratesClient.changeTurnRate(t / 5)}
     >
       {t}
     </button>

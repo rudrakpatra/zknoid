@@ -1,10 +1,11 @@
-import { Scene, Object3D, Vector3, Euler } from 'three';
+import { Scene, Object3D, Vector3, Euler, Mesh } from 'three';
 import { Explosion } from './Explosion';
 import { PiratesConstants } from './Constants';
 import { PiratesProxy } from 'zknoid-chain-dev';
 
 export class PlayerManager {
   private players: Map<string, PiratesProxy.ProxyPlayer> = new Map();
+  private ships: Map<string, Object3D> = new Map();
   private shipModel: Object3D = new Object3D();
   private cannonballs: Map<string, Object3D> = new Map();
   private cannonBall: Object3D = new Object3D();
@@ -17,9 +18,37 @@ export class PlayerManager {
 
   setCannonBallModel(model: Object3D) {
     this.cannonBall = model;
+    this.scene.traverse((child) => {
+      if (child.userData.type == 'cannonball') {
+        const parent = child.parent;
+        if (parent) {
+          child.removeFromParent();
+          const instance = this.cannonBall.clone();
+          instance.name = child.name;
+          instance.position.copy(child.position);
+          instance.rotation.copy(child.rotation);
+          parent.add(instance);
+        }
+      }
+    });
   }
+
   setShipModel(model: Object3D) {
     this.shipModel = model;
+    this.scene.traverse((child) => {
+      if (child.userData.type == 'ship') {
+        const parent = child.parent;
+        if (parent) {
+          child.removeFromParent();
+          const instance = this.shipModel.clone();
+          instance.name = child.name;
+          instance.position.copy(child.position);
+          instance.rotation.copy(child.rotation);
+          console.log('added', instance);
+          parent.add(instance);
+        }
+      }
+    });
   }
 
   syncState(players: { [key: string]: PiratesProxy.ProxyPlayer }) {
@@ -42,108 +71,67 @@ export class PlayerManager {
     if (this.shipModel) {
       const shipInstance = this.shipModel.clone();
       shipInstance.name = pubKey;
-      shipInstance.userData.lastX = playerData.ship.circle.x;
-      shipInstance.userData.lastY = playerData.ship.circle.y;
-      shipInstance.userData.phase = playerData.ship.phase;
-      shipInstance.userData.turnRate = playerData.ship.turnRate;
-      shipInstance.userData.delta = 0;
 
-      //transform ship
       shipInstance.position.set(
         playerData.ship.circle.x,
         0,
         playerData.ship.circle.y
       );
       shipInstance.rotation.y = playerData.ship.phase;
-      shipInstance.updateMatrixWorld();
+      shipInstance.updateMatrix();
       this.scene.add(shipInstance);
+
+      this.ships.set(pubKey, shipInstance);
     }
     this.players.set(pubKey, playerData);
   }
 
   private updatePlayer(pubKey: string, playerData: PiratesProxy.ProxyPlayer) {
-    const ship = this.scene.getObjectByName(pubKey);
+    const ship = this.ships.get(pubKey);
     if (ship) {
-      // Update ship position, rotation, etc. based on playerData.ship
-      // ship.userData.phase = playerData.ship.phase;
-      // ship.userData.lastX = playerData.ship.circle.x;
-      // ship.userData.lastY = playerData.ship.circle.y;
-      // ship.userData.turnRate = playerData.ship.turnRate;
-      // ship.userData.delta = 0;
-
-      //transform ship
       ship.position.set(playerData.ship.circle.x, 0, playerData.ship.circle.y);
       ship.rotation.y = playerData.ship.phase;
-      ship.updateMatrixWorld();
+      ship.updateMatrix();
     }
     this.players.set(pubKey, playerData);
   }
 
   private removePlayer(pubKey: string) {
-    const ship = this.scene.getObjectByName(pubKey);
+    const ship = this.ships.get(pubKey);
     if (ship) {
       this.scene.remove(ship);
+      this.ships.delete(pubKey);
     }
     this.players.delete(pubKey);
   }
 
   update(delta: number) {
-    this.updateShip(delta);
+    this.updateShips(delta);
     this.updateCannonballs();
     this.updateExplosions(delta);
   }
 
-  // private updateShip(delta: number) {
-  //   for (const [pubKey, player] of this.players) {
-  //     const ship = this.scene.getObjectByName(pubKey);
-  //     if (ship) {
-  //       const lastPosition = {
-  //         x: ship.userData.lastX,
-  //         y: ship.userData.lastY,
-  //       };
-  //       ship.userData.delta += delta;
-  //       const newPosition = getCurrentPosition(
-  //         lastPosition,
-  //         ship.userData.phase,
-  //         ship.userData.turnRate,
-  //         ship.userData.delta / 1000
-  //       );
-
-  //       const newPhase =
-  //         ship.userData.phase +
-  //         (ship.userData.turnRate *
-  //           (2 * Math.PI * BLOCK_FREQ) *
-  //           ship.userData.delta) /
-  //           100;
-  //       console.log(newPosition);
-  //       ship.position.setX(newPosition.x);
-  //       ship.position.setZ(newPosition.y);
-  //       ship.rotation.set(0, newPhase, 0);
-  //       ship.updateMatrixWorld();
-  //     }
-  //   }
-  // }
-
-  private updateShip(delta: number) {
-    for (const [pubKey, player] of this.players) {
-      const ship = this.scene.getObjectByName(pubKey);
-      if (ship) {
-        // Update direction based on turn rate
-        ship.rotateY(player.ship.turnRate * delta);
-        // Calculate speed (you might want to adjust this based on your game's scale)
-        const speed =
-          ((PiratesConstants.SHIP_SPEED / 10 ** PiratesConstants.DECIMALS) *
-            delta) /
-          5;
-        // Update ship's position
-        ship.translateOnAxis(new Vector3(0, 0, -1), speed);
-      }
-    }
+  private updateShips(delta: number) {
+    // for (const [pubKey, ship] of this.ships) {
+    // if (ship.userData.angle === undefined) ship.userData.angle = 0;
+    // const dAngle =
+    //   (this.getPlayer(pubKey)!.ship.turnRate /
+    //     PiratesConstants.QUANISATION_LEVEL) *
+    //   2 *
+    //   Math.PI *
+    //   delta;
+    // ship.userData.angle += dAngle;
+    // ship.rotation.y = ship.userData.angle;
+    // console.log(ship);
+    // const speed =
+    //   (PiratesConstants.SHIP_SPEED / 10 ** PiratesConstants.DECIMALS) * delta;
+    // ship.translateOnAxis(new Vector3(0, 0, -1), speed);
+    // }
   }
+
   private updateCannonballs() {
-    // For each player, update their cannonball if needed
     for (const [pubKey, player] of this.players) {
-      const ship = this.scene.getObjectByName(pubKey);
+      const ship = this.ships.get(pubKey);
       if (ship && player.prevCannonBall) {
         const currentBlockHeight = this.scene.userData.blockHeight as number;
         if (
@@ -199,41 +187,6 @@ export class PlayerManager {
       explosion.geometry.dispose();
       explosion.material.dispose();
     }
+    this.ships.clear();
   }
 }
-const BLOCK_FREQ = 1; //1 BLOCK HEIGHT PER SECOND
-// Constants (you may need to adjust these based on your game's scale)
-const SHIP_SPEED =
-  PiratesConstants.SHIP_SPEED / 10 ** PiratesConstants.DECIMALS; // Adjust this value as needed
-
-// function getCurrentPosition(
-//   lastPosition: { x: number; y: number },
-//   p: number,
-//   w: number,
-//   dt: number
-// ) {
-//   // Adjust turnRate to avoid division by zero
-//   const w1 = w === 0 ? 1 : w;
-
-//   let dx, dy;
-
-//   if (w === 0) {
-//     // Straight line motion
-//     dx = Math.sin(p) * SHIP_SPEED * dt;
-//     dy = Math.cos(p) * SHIP_SPEED * dt;
-//   } else {
-//     // Circular motion
-//     dx =
-//       (Math.cos(p - 2 * Math.PI * BLOCK_FREQ * w * dt) - Math.cos(p)) *
-//       (SHIP_SPEED / w1);
-//     dy =
-//       (Math.sin(p - 2 * Math.PI * BLOCK_FREQ * w * dt) - Math.cos(p)) *
-//       (SHIP_SPEED / w1);
-//   }
-
-//   // Calculate new position
-//   const newX = lastPosition.x + dx * 5;
-//   const newY = lastPosition.y + dy * 5;
-
-//   return { x: newX, y: newY };
-// }

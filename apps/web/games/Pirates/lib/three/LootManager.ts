@@ -1,4 +1,4 @@
-import { Scene, Object3D } from 'three';
+import { Scene, Object3D, Mesh } from 'three';
 import { PiratesProxy } from 'zknoid-chain-dev';
 
 export class LootManager {
@@ -9,6 +9,19 @@ export class LootManager {
 
   setLootModel(model: Object3D) {
     this.lootModel = model;
+    this.scene.traverse((child) => {
+      if (child.userData.type == 'loot') {
+        const parent = child.parent;
+        if (parent) {
+          child.removeFromParent();
+          const instance = this.lootModel.clone();
+          instance.name = child.name;
+          instance.position.copy(child.position);
+          instance.rotation.copy(child.rotation);
+          parent.add(instance);
+        }
+      }
+    });
   }
 
   update(delta: number) {

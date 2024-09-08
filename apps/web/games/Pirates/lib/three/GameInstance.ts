@@ -146,6 +146,7 @@ export class GameInstance {
     this.playerManager.setCannonBallModel(cannonball);
     this.lootManager.setLootModel(loot);
     this.loadedAssetLevel = 2;
+    console.log('loaded');
   }
 
   update() {
